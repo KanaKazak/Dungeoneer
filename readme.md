@@ -1,5 +1,7 @@
 # Dungeoneer
 
+(assets/screenshots/gameplay.gif)
+
 A CLI-based roguelike RPG with turn-based, grid-based combat. Procedurally generated dungeons, persistent character progression, and a detailed combat system with attributes, critical hits, fumbles, and enemy AI.
 
 > Pygame graphical frontend in active development.
