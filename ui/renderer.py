@@ -166,7 +166,7 @@ def main():
 
     # --- Player sprite and animation ---
     player_sprite_sheet = pygame.image.load(
-        "C:/kanagat/Dungeoneer/ui/sprites/Knight/Spritesheet/Hero-idle-Sheet.png"
+        "D:/Coding/Dungeoneer/ui/sprites/Knight/Spritesheet/Hero-idle-Sheet.png"
     ).convert_alpha()
     player_FRAME_W = player_sprite_sheet.get_width() // 2
     player_FRAME_H = player_sprite_sheet.get_height()
@@ -179,7 +179,7 @@ def main():
 
     # --- Enemy sprite and animation
     enemy_sprite_sheet = pygame.image.load(
-        "C:/kanagat/Dungeoneer/ui/sprites/goblin idle.png"
+        "D:/Coding/Dungeoneer/ui/sprites/goblin idle.png"
     ).convert_alpha()
     enemy_FRAME_W = enemy_sprite_sheet.get_width() // 3
     enemy_FRAME_H = enemy_sprite_sheet.get_height()
