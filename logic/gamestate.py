@@ -5,3 +5,11 @@ class GameState:
         self.dungeon = None
         self.messages = ["Welcome to Dungeoneer"]
         self.running = True
+
+def log(text, messages=None):
+    if messages is not None:
+        messages.append(text)
+        if len(messages) > 6:
+            messages.pop(0)
+    else:
+        print(text)

@@ -4,6 +4,7 @@ from logic.entities import Character
 from logic.input_handler import get_input
 from logic.items import Weapon
 from logic.attributes import Attributes
+from logic.gamestate import log
 
 
 # =========================================================
@@ -120,7 +121,7 @@ def is_within_melee_range(attacker, target):
 # ATTACK FLOW (PLAYER/AI ENTRY POINT)
 # =========================================================
 
-def attack(attacker, current_room, time_sensitive=False):
+def attack(attacker, current_room, time_sensitive=False, messages=None):
     """
     Handles selecting and executing an attack.
     """
@@ -130,10 +131,8 @@ def attack(attacker, current_room, time_sensitive=False):
     ]
 
     if not targets:
-        print("There are no enemies to attack.")
+        log("There are no enemies to attack.", messages)
         return
-
-    print(f"Enemies in the room: {targets}")
 
     # Filter valid melee targets
     targets_in_range = [
@@ -142,17 +141,17 @@ def attack(attacker, current_room, time_sensitive=False):
     ]
 
     if not targets_in_range:
-        print("There are no enemies within melee range to attack.")
+        log("There are no enemies within melee range to attack.", messages)
         return
 
     # Auto-attack if only one target
     if len(targets_in_range) == 1:
-        execute_attack(attacker, targets_in_range[0], current_room, time_sensitive)
+        execute_attack(attacker, targets_in_range[0], current_room, time_sensitive, messages)
         return
 
     # Player chooses target
     for i, e in enumerate(targets_in_range, 1):
-        print(f"{i}. {e.name} at {e.position}")
+        log(f"{i}. {e.name} at {e.position}", messages)
 
     choice = get_input("Who do you want to attack? ", attacker)
 
@@ -161,16 +160,16 @@ def attack(attacker, current_room, time_sensitive=False):
 
     if choice in [enemy.name.lower() for enemy in targets_in_range]:
         enemy = next(e for e in targets_in_range if e.name.lower() == choice)
-        execute_attack(attacker, enemy, current_room, time_sensitive)
+        execute_attack(attacker, enemy, current_room, time_sensitive, messages)
     else:
-        print("Invalid choice. No attack executed.")
+        log("Invalid choice. No attack executed.", messages)
 
 
 # =========================================================
 # COMBAT RESOLUTION
 # =========================================================
 
-def execute_attack(attacker, target, current_room, time_sensitive=False):
+def execute_attack(attacker, target, current_room, time_sensitive=False, messages=None):
     """
     Executes full attack resolution (hit, damage, death).
     """
@@ -178,10 +177,10 @@ def execute_attack(attacker, target, current_room, time_sensitive=False):
 
     # AP check (only in time-sensitive mode)
     if time_sensitive and attacker.ap < ap_cost:
-        print("You don't have enough action points to attack.")
+        log("You don't have enough action points to attack.", messages)
         return
 
-    print(f"{attacker.name} attacks {target.name}!")
+    log(f"{attacker.name} attacks {target.name}!", messages)
 
     if time_sensitive:
         attacker.ap -= ap_cost
@@ -194,7 +193,7 @@ def execute_attack(attacker, target, current_room, time_sensitive=False):
     if hit == "crit":
         damage = calculate_damage(attacker, target) * 2
         target.take_damage(damage)
-        print(f"Critical hit! {attacker.name} hit {target.name} for {damage} damage! (Roll: {roll})")
+        log(f"Critical hit! {attacker.name} hit {target.name} for {damage} damage! (Roll: {roll})", messages)
 
     # -------------------------
     # NORMAL HIT
@@ -202,19 +201,19 @@ def execute_attack(attacker, target, current_room, time_sensitive=False):
     elif hit == "hit":
         damage = calculate_damage(attacker, target)
         target.take_damage(damage)
-        print(f"{attacker.name} hit {target.name} for {damage} damage! (Roll: {roll})")
+        log(f"{attacker.name} hit {target.name} for {damage} damage! (Roll: {roll})", messages)
 
     # -------------------------
     # MISS
     # -------------------------
     elif hit == "miss":
-        print(f"{attacker.name} missed {target.name}! (Roll: {roll})")
+        log(f"{attacker.name} missed {target.name}! (Roll: {roll})", messages)
 
     # -------------------------
     # FUMBLE
     # -------------------------
     elif hit == "fumble":
-        print("Critical miss!")
+        log("Critical miss!", messages)
         handle_fumble(attacker, target, current_room)
 
     # -------------------------
@@ -222,47 +221,47 @@ def execute_attack(attacker, target, current_room, time_sensitive=False):
     # -------------------------
     if not target.is_alive():
         target.is_dead = True
-        print(f"You have slain {target.name}!")
+        log(f"You have slain {target.name}!", messages)
 
         exp_gained = target.level * 10
-        print(f"You gain {exp_gained} experience points.")
+        log(f"You gain {exp_gained} experience points.", messages)
         attacker.gain_exp(exp_gained)
 
     else:
-        print(f"{target.name} has {target.health} HP left.")
+        log(f"{target.name} has {target.health} HP left.", messages)
 
 
 # =========================================================
 # FUMBLE EFFECTS
 # =========================================================
 
-def handle_fumble(attacker, target, current_room):
+def handle_fumble(attacker, target, current_room, messages=None):
     """
     Random negative consequence for critical failure.
     """
     effect = random.randint(1, 6)
 
     if effect == 1:
-        print(f"{attacker.name} trips and falls! All AP lost.")
+        log(f"{attacker.name} trips and falls! All AP lost.", messages)
         attacker.ap = 0
 
     elif effect == 2:
         damage = calculate_damage(attacker, attacker) // 2
-        print(f"{attacker.name} hits themselves for {damage} damage!")
+        log(f"{attacker.name} hits themselves for {damage} damage!", messages)
         attacker.take_damage(damage)
 
     elif effect == 3:
-        print(f"{attacker.name} drops their weapon!")
+        log(f"{attacker.name} drops their weapon!", messages)
         # TODO: implement weapon drop system
 
     elif effect == 4:
-        print(f"{attacker.name} stumbles! {target.name} gets a free attack!")
-        execute_attack(target, attacker, current_room, time_sensitive=False)
+        log(f"{attacker.name} stumbles! {target.name} gets a free attack!", messages)
+        execute_attack(target, attacker, current_room, time_sensitive=False, messages=messages)
 
     elif effect == 5:
-        print(f"{attacker.name} pulls a muscle! Movement halved next turn.")
+        log(f"{attacker.name} pulls a muscle! Movement halved next turn.", messages)
         attacker.movement_multiplier = 0.5
 
     elif effect == 6:
-        print(f"Embarrassing miss! {target.name} gains +10 to next attack.")
+        log(f"Embarrassing miss! {target.name} gains +10 to next attack.", messages)
         target.attack_bonus_temp = 10

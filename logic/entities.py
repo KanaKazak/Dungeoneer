@@ -62,7 +62,7 @@ class Character(Entity):
         self.health = self.max_health
 
         self.ap = ap
-        self.ap_max = ap_max
+        self.ap_max = 4 + int(self.attributes.get_attribute_bonus("AGI") // 15)
 
         self.level = level
         self.exp_threshold = self.level * 100
@@ -74,7 +74,7 @@ class Character(Entity):
         self.attack_bonus_temp = 0
         self.movement_multiplier = 1
 
-        self.movement_per_ap = 4 + int(self.attributes.get_attribute_bonus("AGI") // 5)
+        self.movement_per_ap = 1
         self.movement = 0
 
         self.is_dead = False
@@ -149,10 +149,13 @@ class Player(Character):
         self.exp_threshold = self.level * 100
 
         # Recalculate derived stats after loading
-        self.max_health = self.base_hp + int(self.attributes.get_attribute_bonus("CON") * 2)
-        self.health = self.max_health
+        self.hp_max = self.base_hp + int(self.attributes.get_attribute_bonus("CON") * 2)
+        self.hp = self.hp_max
 
-        self.movement_per_ap = 4 + int(self.attributes.get_attribute_bonus("AGI") // 5)
+        self.ap_max = 4 + int(self.attributes.get_attribute_bonus("AGI") // 15)
+        self.ap = self.ap_max
+
+        self.movement_per_ap = 1
         self.movement = 0
 
 
@@ -163,7 +166,7 @@ class Player(Character):
     def describe(self):
         return (
             f"{self.name} is a mighty hero venturing into the dungeon.\n"
-            f"{self.health}/{self.max_health} HP | Damage: {self.damage}"
+            f"{self.hp}/{self.hp_max} HP | Damage: {self.damage}"
         )
 
 
@@ -238,10 +241,13 @@ class Enemy(Character):
             STR=5, CON=5, DEX=3, AGI=3, INT=1, WIS=1, CHA=1, LUCK=2
         )
 
-        self.max_health = self.base_hp + int(self.attributes.get_attribute_bonus("CON") * 2)
-        self.health = self.max_health
+        self.hp_max = self.base_hp + int(self.attributes.get_attribute_bonus("CON") * 2)
+        self.hp = self.hp_max
 
-        self.movement_per_ap = 4 + int(self.attributes.get_attribute_bonus("AGI") // 5)
+        self.ap_max = 4 + int(self.attributes.get_attribute_bonus("AGI") // 15)
+        self.ap = self.ap_max
+
+        self.movement_per_ap = 1
         self.movement = 0
 
 
@@ -257,7 +263,7 @@ class Goblin(Enemy):
     def describe(self):
         return (
             f"{self.name} is a sneaky goblin lurking in the shadows.\n"
-            f"{self.health}/{self.max_health} HP | Damage: {self.damage}"
+            f"{self.hp}/{self.hp_max} HP | Damage: {self.damage}"
         )
 
     def level_up(self):

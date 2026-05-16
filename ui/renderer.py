@@ -4,7 +4,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logic.gamestate import GameState
 from logic.game import initialize_game
-from logic.combat import is_within_melee_range
+from logic.combat import is_within_melee_range, execute_attack
 
 # =============================================================================
 # CONSTANTS — all layout values defined here so they're easy to tweak
@@ -151,7 +151,7 @@ def main():
 
 
     # --- Action buttons ---
-    actions = ["move", "look", "attack", "loot", "inventory", "traverse"]
+    actions = ["move", "look", "attack", "loot", "inventory", "traverse", "end turn"]
     buttons = []
     btn_width = STATUS_WIDTH // len(actions)
     btn_height = 40
@@ -166,7 +166,7 @@ def main():
 
     # --- Player sprite and animation ---
     player_sprite_sheet = pygame.image.load(
-        "D:/Coding/Dungeoneer/ui/sprites/Knight/Spritesheet/Hero-idle-Sheet.png"
+        os.path.join(os.path.dirname(__file__), 'sprites/Knight/Spritesheet/Hero-idle-Sheet.png')
     ).convert_alpha()
     player_FRAME_W = player_sprite_sheet.get_width() // 2
     player_FRAME_H = player_sprite_sheet.get_height()
@@ -179,7 +179,7 @@ def main():
 
     # --- Enemy sprite and animation
     enemy_sprite_sheet = pygame.image.load(
-        "D:/Coding/Dungeoneer/ui/sprites/goblin idle.png"
+        os.path.join(os.path.dirname(__file__), 'sprites\goblin-idle.png')
     ).convert_alpha()
     enemy_FRAME_W = enemy_sprite_sheet.get_width() // 3
     enemy_FRAME_H = enemy_sprite_sheet.get_height()
@@ -206,24 +206,65 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 for button in buttons:
                     if button.clicked(event.pos):
-                        add_message(f"You selected: {button.text}", state.messages)
+                        if button.text == "attack":
+                            # TODO: implement attack mode
+                            add_message(f"You selected: {button.text}", state.messages)
+                        elif button.text == "loot":
+                            # TODO: implement loot mode
+                            add_message(f"You selected: {button.text}", state.messages)
+                        elif button.text == "move":
+                            # TODO: implement move mode
+                            add_message(f"You selected: {button.text}", state.messages)
+                        elif button.text == "look":
+                            # TODO: implement look mode
+                            add_message(f"You selected: {button.text}", state.messages)
+                        elif button.text == "inventory":
+                            # TODO: implement inventory screen
+                            add_message(f"You selected: {button.text}", state.messages)
+                        elif button.text == "traverse":
+                            # TODO: implement room traversal
+                            add_message(f"You selected: {button.text}", state.messages)
+                        elif button.text == "end turn":
+                            state.player.reset_ap()
+                            add_message(f"You selected: {button.text}", state.messages)
 
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            clicked_tile = pixel_to_game(event.pos)
-            if clicked_tile is not None:
-                entities, items = get_tile_contents(clicked_tile, state)
-                if clicked_tile == state.player.position:
-                    pass  # clicking yourself does nothing
-                elif entities and not entities[0].is_dead:
-                    # attack
-                    pass
-                elif items or (entities and entities[0].is_dead):
-                    # loot
-                    pass
-                else:
-                    # move
-                    state.player.position = clicked_tile
-                    pass
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                clicked_tile = pixel_to_game(event.pos)
+                if clicked_tile is not None:
+                    entities, items = get_tile_contents(clicked_tile, state)
+                    if clicked_tile == state.player.position:
+                        pass  # clicking yourself does nothing
+                    elif entities and not entities[0].is_dead:
+                        if is_within_melee_range(state.player, entities[0]):
+                            ap_cost = state.player.attack_ap_cost()
+                            if state.player.ap >= ap_cost:
+                                execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages)
+                            else:
+                                add_message("Not enough AP to attack.", state.messages)
+
+                        else:
+                            dx = abs(clicked_tile[0] - state.player.position[0])
+                            dy = abs(clicked_tile[1] - state.player.position[1])
+                            move_cost = max(0, dx + dy - 1)
+                            total_cost = move_cost + state.player.attack_ap_cost()
+                            if state.player.ap >= total_cost:
+                                state.player.ap -= total_cost
+                                state.player.position = clicked_tile
+                            else:
+                                add_message("Not enough AP to move and attack there.", state.messages)
+                    elif items or (entities and entities[0].is_dead):
+                        # loot
+                        pass
+                    else:
+                        dx = abs(clicked_tile[0] - state.player.position[0])
+                        dy = abs(clicked_tile[1] - state.player.position[1])
+                        distance = dx + dy
+                        if distance <= state.player.ap:
+                            state.player.ap -= distance
+                            state.player.position = clicked_tile
+                        else:
+                            add_message("Not enough AP to move there.", state.messages)
 
 
         # --- UPDATE ---
@@ -279,8 +320,8 @@ def main():
 
         # 5. Status bar
         pygame.draw.rect(screen, (60, 40, 40), (STATUS_X, STATUS_Y, STATUS_WIDTH, STATUS_HEIGHT))
-        screen.blit(font.render("HP: 100", True, (255, 255, 255)), (STATUS_X + 10, STATUS_Y + 60))
-        screen.blit(font.render("AP: 4", True, (255, 255, 255)), (STATUS_X + 120, STATUS_Y + 60))
+        screen.blit(font.render(f"HP: {state.player.hp}/{state.player.hp_max}", True, (255, 255, 255)), (STATUS_X + 10, STATUS_Y + 60))
+        screen.blit(font.render(f"AP: {state.player.ap}/{state.player.ap_max}", True, (255, 255, 255)), (STATUS_X + 120, STATUS_Y + 60))
 
         # 6. Action buttons
         for button in buttons:
