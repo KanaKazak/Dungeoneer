@@ -11,6 +11,7 @@ class Room:
     def __init__(self, name: str, description: str):
         self.name = name
         self.description = description
+        self.is_visited = False
 
         self.contents = {
             "entities": [],
@@ -104,25 +105,17 @@ class Dungeon:
     Handles basic lookup and storage.
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name):
         self.name = name
-        self.rooms = {}
+        self.rooms = []  # list instead of dict
 
 
     # =========================================================
     # ROOM MANAGEMENT
     # =========================================================
 
-    def add_room(self, room: Room):
-        """
-        Adds a room to the dungeon.
-        """
-        self.rooms[room.name] = room
-
-
-    def get_room(self, name: str):
-        """
-        Retrieves a room by name.
-        Returns None if not found.
-        """
-        return self.rooms.get(name)
+    def add_room(self, room):
+        self.rooms.append(room)
+    
+    def get_room(self, index):
+        return self.rooms[index]

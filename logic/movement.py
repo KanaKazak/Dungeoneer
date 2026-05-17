@@ -1,5 +1,5 @@
 from logic.input_handler import get_input
-
+from logic.gamestate import log
 
 # =========================================================
 # PLAYER MOVEMENT (TURN-BASED)
@@ -154,6 +154,26 @@ def calculate_destination(position, direction, steps, room):
 
     return position, 0, False
 
+def get_adjacent_tile(target_pos, mover_pos, current_room):
+    """Find the closest free tile adjacent to target."""
+    tx, ty = target_pos
+    candidates = [
+        (tx + 1, ty), (tx - 1, ty),
+        (tx, ty + 1), (tx, ty - 1),
+        (tx + 1, ty + 1), (tx - 1, ty - 1),
+        (tx + 1, ty - 1), (tx - 1, ty + 1)
+    ]
+    # filter valid tiles
+    valid = [
+        p for p in candidates
+        if 1 <= p[0] <= 10 and 1 <= p[1] <= 10
+        and not is_position_occupied(p, current_room)
+    ]
+    if not valid:
+        return None
+    # return closest to mover
+    return min(valid, key=lambda p: abs(p[0]-mover_pos[0]) + abs(p[1]-mover_pos[1]))
+
 
 # =========================================================
 # OCCUPANCY CHECK
@@ -173,7 +193,7 @@ def is_position_occupied(position, current_room):
 # SIMPLE MOVE (NON-TURN / AI USAGE)
 # =========================================================
 
-def move_character(player, direction, steps, current_room):
+def move_character(player, direction, steps, current_room, messages=None):
     """
     Direct movement without AP system.
     """
@@ -186,11 +206,14 @@ def move_character(player, direction, steps, current_room):
     )
 
     if is_position_occupied(destination, current_room):
-        print(f"{player.name} cannot move {direction}; blocked.")
+        if messages is not None:
+            messages.append(f"{player.name} cannot move {direction}; blocked.")
         return
 
     player.position = destination
-    print(f"{player.name} moves {direction} to {player.position}.")
+    log(f"{player.name} moves {direction} to {player.position}.")
+    if messages is not None:
+        messages.append(f"{player.name} moves {direction} to {player.position}.")
 
 
 # =========================================================

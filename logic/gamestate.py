@@ -9,7 +9,7 @@ class GameState:
 def log(text, messages=None):
     if messages is not None:
         messages.append(text)
-        if len(messages) > 6:
+        if len(messages) > 25:
             messages.pop(0)
     else:
         print(text)

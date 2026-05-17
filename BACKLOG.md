@@ -15,6 +15,11 @@
 - [ ] More implementation of LUCK attribute
 - [ ] Fumble effect 3: weapon drop — lands at random adjacent tile, player must loot it back
 - [ ] Enemy naming system — Goblin 1, Goblin 2 etc. when multiple of same type in room
+- [ ] More goblins per room
+- [ ] Goblins that scale with dungeon depth
+- [ ] No resting between rooms
+- [ ] Actual consequences for taking damage
+- [ ] Refactor: extract move_and_act(player, target_pos, action, state) helper to reduce repetition in renderer.py
 
 ## Items
 - [ ] Consumable breaks when attacked
