@@ -174,6 +174,27 @@ def get_adjacent_tile(target_pos, mover_pos, current_room):
     # return closest to mover
     return min(valid, key=lambda p: abs(p[0]-mover_pos[0]) + abs(p[1]-mover_pos[1]))
 
+def move_to_adjacent(mover, target, current_room, time_sensitive, messages=None):
+    adjacent = get_adjacent_tile(target.position, mover.position, current_room)
+    if not adjacent:
+        log(f"{mover.name} cannot move adjacent to {target.name}; no free tiles.", messages)
+        return False
+    dx = abs(adjacent[0] - mover.position[0])
+    dy = abs(adjacent[1] - mover.position[1])
+    move_cost = dx + dy
+    if time_sensitive:
+        if mover.ap >= move_cost:
+            mover.ap -= move_cost
+            mover.position = adjacent
+            log(f"{mover.name} moves adjacent to {target.name} at {adjacent}.", messages)
+            return True
+        else:
+            log(f"{mover.name} cannot move adjacent to {target.name}; not enough AP.", messages)
+            return False
+    else:
+        mover.position = adjacent
+        log(f"{mover.name} moves adjacent to {target.name} at {adjacent}.", messages)
+    return True
 
 # =========================================================
 # OCCUPANCY CHECK

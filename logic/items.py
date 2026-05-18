@@ -11,11 +11,14 @@ class Item(Entity):
     Base class for all items in the game world.
     """
 
-    def __init__(self, name, position):
+    def __init__(self, name, position, weight=0, category="misc"):
         super().__init__(name, position)
+        self.weight = weight
+        self.category = category
+        self.is_quest_item = category == "quest"
 
     def __repr__(self):
-        return f"Item(name={self.name}, position={self.position})"
+        return f"Item(name={self.name}, position={self.position}, weight={self.weight}, category={self.category})"
 
     @abstractmethod
     def describe(self):
@@ -32,7 +35,7 @@ class Weapon(Item):
     """
 
     def __init__(self, name, position, damage, ap_cost, tag=None):
-        super().__init__(name, position)
+        super().__init__(name, position, category="weapon")
 
         self.damage = damage
         self.ap_cost = ap_cost
@@ -56,7 +59,10 @@ class Sword(Weapon):
     """
     Versatile weapon type.
     """
-    tag = "versatile"
+
+    def __init__(self, name, position, damage, ap_cost, tag="versatile"):
+        super().__init__(name, position, damage, ap_cost, tag)
+        self.weight = 5
 
     def __str__(self):
         return f"{self.name} (Sword, Damage: {self.damage})"
@@ -72,7 +78,10 @@ class Club(Weapon):
     """
     Heavy blunt weapon.
     """
-    tag = "heavy"
+
+    def __init__(self, name, position, damage, ap_cost, tag="heavy"):
+        super().__init__(name, position, damage, ap_cost, tag)
+        self.weight = 4
 
     def __str__(self):
         return f"{self.name} (Club, Damage: {self.damage})"
@@ -94,7 +103,7 @@ class Consumable(Item):
     """
 
     def __init__(self, name, position, effect):
-        super().__init__(name, position)
+        super().__init__(name, position, weight=0.5, category="consumable")
         self.effect = effect
 
     def __repr__(self):
@@ -120,22 +129,58 @@ class HealthPotion(Consumable):
 
 
 # =========================================================
-# VALUABLE ITEMS
+# CLOTHING AND ARMOR
 # =========================================================
 
-class Valuables(Item):
+class Clothing_Armor(Item):
     """
-    Items used for currency or progression value.
+    Items that can be worn for protection or style, but also have value.
     """
 
     def __init__(self, name, position, value):
-        super().__init__(name, position)
+        super().__init__(name, position, weight=1, category="Clothing_Armor")
         self.value = value
 
     def __repr__(self):
-        return f"Valuable(name={self.name}, position={self.position}, value={self.value})"
+        return f"Clothing_Armor(name={self.name}, position={self.position}, value={self.value})"
 
     def describe(self):
         return (
-            f"{self.name} is a valuable item worth {self.value} gold coins."
+            f"{self.name} is a piece of clothing or armor worth {self.value} gold coins."
+        )
+    
+# =========================================================
+# QUEST ITEMS
+# =========================================================
+class QuestItem(Item):
+    """
+    Items that are important for quests and cannot be discarded.
+    """
+
+    def __init__(self, name, position, description):
+        super().__init__(name, position, weight=0, category="quest")
+        self.description = description
+
+    def __repr__(self):
+        return f"QuestItem(name={self.name}, position={self.position}, description={self.description})"
+
+    def describe(self):
+        return f"{self.name} is a quest item: {self.description}."
+    
+# =========================================================
+# SPECIFIC QUEST ITEMS
+# =========================================================
+
+class GoldMedal(QuestItem):
+    """
+    A golden medal that is important for a quest.
+    """
+
+    def __str__(self):
+        return f"{self.name} (Gold Medal, Description: {self.description})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a shiny gold medal with intricate engravings. "
+            f"It is the dungeon's most prized artifact."
         )

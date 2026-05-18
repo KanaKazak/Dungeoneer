@@ -6,7 +6,7 @@ from logic.gamestate import GameState
 from logic.game import initialize_game, starting_point
 from logic.combat import is_within_melee_range, execute_attack
 from logic.enemy_ai import enemy_turn
-from logic.movement import get_adjacent_tile
+from logic.movement import get_adjacent_tile, move_to_adjacent
 
 # =============================================================================
 # CONSTANTS — all layout values defined here so they're easy to tweak
@@ -194,9 +194,16 @@ def main():
     initialize_game(state)
     running = True
     loot_target = None
+    time_sensitive = False  # whether there are active enemies in the room
+    previous_time_sensitive = False # track previous state to detect when combat starts/ends
     while running:
         dt = clock.tick(FPS)  # time since last frame in ms
+        previous_time_sensitive = time_sensitive
         time_sensitive = any(e for e in state.current_room.contents["entities"] if not e.is_dead and e.is_enemy)
+
+        if previous_time_sensitive and not time_sensitive:
+            state.player.reset_ap()
+            add_message("Combat over. You catch your breath.", state.messages)
 
         # --- INPUT ---
         mouse_pos = pygame.mouse.get_pos()
@@ -269,12 +276,8 @@ def main():
                                 if entity.is_enemy and not entity.is_dead:
                                     enemy_turn(entity, state.player, state.current_room, state.messages)
                             add_message("Turn ended.", state.messages)
-
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        show_traverse_popup = False
-                        show_loot_popup = False
                 if not button_clicked and not show_traverse_popup:
+                    time_sensitive = any(e for e in state.current_room.contents["entities"] if not e.is_dead and e.is_enemy)
                     clicked_tile = pixel_to_game(event.pos)
                     if clicked_tile is not None:
                         entities, items = get_tile_contents(clicked_tile, state)
@@ -289,27 +292,14 @@ def main():
                                 add_message(f"You pick up the {items[0].name}.", state.messages)
                             else:
                                 adjacent = get_adjacent_tile(clicked_tile, state.player.position, state.current_room)
-                                if adjacent:
-                                    dx = abs(adjacent[0] - state.player.position[0])
-                                    dy = abs(adjacent[1] - state.player.position[1])
-                                    move_cost = dx + dy
+                                if move_to_adjacent(state.player, items[0], state.current_room, time_sensitive, state.messages):
                                     if time_sensitive:
-                                        if state.player.ap >= move_cost:
-                                            state.player.ap -= move_cost
-                                            state.player.position = adjacent
-                                            state.player.inventory.append(items[0])
-                                            state.current_room.contents["items"].remove(items[0])
-                                            state.player.ap -= 1  # additional AP cost for looting in combat
-                                            add_message(f"You move and pick up the {items[0].name}.", state.messages)
-                                        else:
-                                            add_message("Not enough AP to move there and loot.", state.messages)
-                                    else:
-                                        state.player.position = adjacent
-                                        state.player.inventory.append(items[0])
-                                        state.current_room.contents["items"].remove(items[0])
-                                        add_message(f"You move and pick up the {items[0].name}.", state.messages)
-                                else:
-                                    add_message("No adjacent tile to move to for looting.", state.messages)
+                                        state.player.ap -= 1  # looting costs 1 AP if there are active enemies
+                                    state.player.inventory.append(items[0])
+                                    state.current_room.contents["items"].remove(items[0])
+                                    add_message(f"You move next to the {items[0].name} and pick it up.", state.messages)
+
+                                
                         elif entities and entities[0].is_dead:
                             if is_within_melee_range(state.player, entities[0]):
                                 loot_target = entities[0]
@@ -317,26 +307,16 @@ def main():
                                 add_message(f"What item do you want to loot from the {entities[0].name}'s corpse?", state.messages)
                             else:
                                 adjacent = get_adjacent_tile(clicked_tile, state.player.position, state.current_room)
-                                if adjacent:
-                                    dx = abs(adjacent[0] - state.player.position[0])
-                                    dy = abs(adjacent[1] - state.player.position[1])
-                                    move_cost = dx + dy
+                                if move_to_adjacent(state.player, entities[0], state.current_room, time_sensitive, state.messages):
+                                    show_loot_popup = True
+                                    loot_target = entities[0]
+                                    add_message(f"What item do you want to loot?", state.messages)
                                     if time_sensitive:
-                                        if state.player.ap >= move_cost:
-                                            state.player.ap -= move_cost
-                                            state.player.position = adjacent
-                                            loot_target = entities[0]
-                                            show_loot_popup = True
-                                            add_message(f"You move next to the {entities[0].name}'s corpse. What item do you want to loot?", state.messages)
-                                        else:
-                                            add_message("Not enough AP to move there and loot.", state.messages)
-                                    else:
-                                        state.player.position = adjacent
-                                        loot_target = entities[0]
-                                        show_loot_popup = True
-                                        add_message(f"You move next to the {entities[0].name}'s corpse. What item do you want to loot?", state.messages)
-                                else:
-                                    add_message("No adjacent tile to move to for looting.", state.messages)
+                                        if state.player.ap >= 1:
+                                            state.player.ap -= 1  # looting costs 1 AP if there are active enemies
+                                        else:                                            
+                                            add_message("Not enough AP to loot.", state.messages)
+                                            show_loot_popup = False
                         elif entities and not entities[0].is_dead:
                             if is_within_melee_range(state.player, entities[0]):
                                 ap_cost = state.player.attack_ap_cost()
@@ -347,18 +327,14 @@ def main():
 
                             else:
                                 adjacent = get_adjacent_tile(clicked_tile, state.player.position, state.current_room)
-                                if adjacent:
-                                    dx = abs(adjacent[0] - state.player.position[0])
-                                    dy = abs(adjacent[1] - state.player.position[1])
-                                    move_cost = dx + dy
-                                    ap_cost = state.player.attack_ap_cost()
-                                    total_cost = move_cost + ap_cost
-                                    if state.player.ap >= total_cost:
-                                        state.player.ap -= total_cost
-                                        state.player.position = adjacent
-                                        execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages)
-                                    else:
-                                        add_message("Not enough AP to move and attack there.", state.messages)
+                                if move_to_adjacent(state.player, entities[0], state.current_room, time_sensitive, state.messages):
+                                    if time_sensitive:
+                                        ap_cost = state.player.attack_ap_cost()
+                                        if state.player.ap >= ap_cost:
+                                            state.player.ap -= ap_cost
+                                            execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages)
+                                        else:
+                                            add_message("Not enough AP to attack after moving.", state.messages)
 
                         elif items or (entities and entities[0].is_dead):
                             # loot
@@ -372,7 +348,10 @@ def main():
                                 state.player.position = clicked_tile
                             else:
                                 add_message("Not enough AP to move there.", state.messages)
-
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    show_traverse_popup = False
+                    show_loot_popup = False
 
         # --- UPDATE ---
         # Advance player animation timer
@@ -404,8 +383,12 @@ def main():
         # 1. Clear screen
         screen.fill((20, 20, 20))
 
-        # 2. Grid background
+        # 2. Grid background, with red tint in combat
         pygame.draw.rect(screen, (40, 40, 80), (GRID_X, GRID_Y, GRID_WIDTH, GRID_HEIGHT))
+        if time_sensitive:
+            overlay = pygame.Surface((GRID_WIDTH, GRID_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((100, 0, 0, 50))  # semi-transparent red
+            screen.blit(overlay, (GRID_X, GRID_Y))
 
         # 3. Individual tiles
         for row in range(GRID_ROWS):
@@ -433,7 +416,10 @@ def main():
         # 5. Status bar
         pygame.draw.rect(screen, (60, 40, 40), (STATUS_X, STATUS_Y, STATUS_WIDTH, STATUS_HEIGHT))
         screen.blit(font.render(f"HP: {state.player.hp}/{state.player.hp_max}", True, (255, 255, 255)), (STATUS_X + 10, STATUS_Y + 60))
-        screen.blit(font.render(f"AP: {state.player.ap}/{state.player.ap_max}", True, (255, 255, 255)), (STATUS_X + 120, STATUS_Y + 60))
+        if time_sensitive:
+            screen.blit(font.render(f"AP: {state.player.ap}/{state.player.ap_max}", True, (255, 255, 255)), (STATUS_X + 120, STATUS_Y + 60))
+        else:
+            screen.blit(font.render("AP: --", True, (100, 100, 100)), (STATUS_X + 120, STATUS_Y + 60))
 
         # 6. Action buttons
         for button in buttons:
@@ -506,7 +492,13 @@ def main():
 
         # 10. Loot popup
         if show_loot_popup and loot_target:
-            # overlay and popup box as you have it...
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 120))
+            screen.blit(overlay, (0, 0))
+            
+            popup_rect = pygame.Rect(300, 250, 200, 150)
+            pygame.draw.rect(screen, (50, 50, 80), popup_rect)
+            pygame.draw.rect(screen, (150, 150, 200), popup_rect, 2)
             title = font.render(f"Loot {loot_target.name}", True, (255, 255, 255))
             screen.blit(title, (popup_rect.x + 10, popup_rect.y + 10))
             
