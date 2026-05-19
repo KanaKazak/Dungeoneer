@@ -4,7 +4,7 @@ from logic.combat import attack, determine_initiative
 from logic.dungeon import Room, Dungeon
 from logic.entities import Player, Goblin
 from logic.inventory_manipulation import inventory_manipulation
-from logic.items import Club, Sword, HealthPotion, Valuables
+from logic.items import Club, GoldMedal, Sword, HealthPotion
 from logic.loot import loot
 from logic.movement import move_player
 from logic.progress import save_progress
@@ -273,9 +273,12 @@ def generate_dungeon(player):
 # =========================================================
 
 def spawn_goblin(room):
+    position = (random.randint(1, room.width), random.randint(1, room.height))
+    while position == starting_point:
+        position = (random.randint(1, room.width), random.randint(1, room.height))
     goblin = Goblin(
         name="Goblin",
-        position=(random.randint(1, room.width), random.randint(1, room.height)),
+        position=position,
         health=30,
         level=1
     )
@@ -294,17 +297,20 @@ def spawn_goblin(room):
 
 
 def spawn_loot(room):
+    position = (random.randint(1, room.width), random.randint(1, room.height))
+    while position == starting_point:
+        position = (random.randint(1, room.width), random.randint(1, room.height))
     if random.random() < 0.5:
         item = Sword(
             name="Rusty Sword",
-            position=(random.randint(1, room.width), random.randint(1, room.height)),
+            position=position,
             damage=5,
             ap_cost=2
         )
     else:
         item = HealthPotion(
             name="Health Potion",
-            position=(random.randint(1, room.width), random.randint(1, room.height)),
+            position=position,
             effect=20
         )
 
@@ -312,10 +318,10 @@ def spawn_loot(room):
 
 
 def spawn_goal_item(room):
-    gold_medal = Valuables(
+    gold_medal = GoldMedal(
         name="Gold Medal",
         position=(random.randint(1, room.width), random.randint(1, room.height)),
-        value=100
+        description="The most prized artifact in the dungeon."
     )
 
     room.contents["items"].append(gold_medal)

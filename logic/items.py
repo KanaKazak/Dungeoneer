@@ -163,9 +163,6 @@ class QuestItem(Item):
 
     def __repr__(self):
         return f"QuestItem(name={self.name}, position={self.position}, description={self.description})"
-
-    def describe(self):
-        return f"{self.name} is a quest item: {self.description}."
     
 # =========================================================
 # SPECIFIC QUEST ITEMS

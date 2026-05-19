@@ -1,5 +1,5 @@
 from logic.input_handler import get_input
-from logic.items import HealthPotion, Weapon, Valuables
+from logic.items import HealthPotion, Weapon
 
 
 # =========================================================
@@ -72,9 +72,6 @@ def handle_item(player, item, time_sensitive=False):
 
     elif isinstance(item, Weapon):
         equip_weapon(player, item, time_sensitive)
-
-    elif isinstance(item, Valuables):
-        print(f"You examine the {item.name}. It's worth {item.value} gold coins.")
 
     else:
         print("Nothing happens.")

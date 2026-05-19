@@ -77,8 +77,12 @@ class Character(Entity):
         self.movement_per_ap = 1
         self.movement = 0
 
-        self.is_dead = False
+        self.max_carry_weight = 50 + self.attributes.STR * 2
 
+        self.is_dead = False
+    @property
+    def carry_weight(self):
+        return sum(item.weight for item in self.inventory)
 
     # ---------------------------------------------------------
     # COMBAT STATS
@@ -157,6 +161,8 @@ class Player(Character):
 
         self.movement_per_ap = 1
         self.movement = 0
+
+        self.max_carry_weight = 50 + self.attributes.STR * 2
 
 
     # ---------------------------------------------------------
@@ -249,6 +255,8 @@ class Enemy(Character):
 
         self.movement_per_ap = 1
         self.movement = 0
+
+        self.max_carry_weight = 50 + self.attributes.STR * 2
 
 
 # =========================================================

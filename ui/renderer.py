@@ -7,6 +7,8 @@ from logic.game import initialize_game, starting_point
 from logic.combat import is_within_melee_range, execute_attack
 from logic.enemy_ai import enemy_turn
 from logic.movement import get_adjacent_tile, move_to_adjacent
+from logic.items import GoldMedal
+from logic.progress import save_progress
 
 # =============================================================================
 # CONSTANTS — all layout values defined here so they're easy to tweak
@@ -150,7 +152,7 @@ def main():
     show_traverse_popup = False
     show_loot_popup = False
     # --- Action buttons ---
-    actions = ["move", "look", "attack", "loot", "inventory", "traverse", "end turn"]
+    actions = ["look", "attack","inventory", "traverse", "end turn"]
     buttons = []
     btn_width = STATUS_WIDTH // len(actions)
     btn_height = 40
@@ -196,6 +198,11 @@ def main():
     loot_target = None
     time_sensitive = False  # whether there are active enemies in the room
     previous_time_sensitive = False # track previous state to detect when combat starts/ends
+
+    dungeon_map = pygame.image.load(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'maps', 'dungeon1.png')
+    ).convert()
+    dungeon_map = pygame.transform.scale(dungeon_map, (GRID_WIDTH, GRID_HEIGHT))
     while running:
         dt = clock.tick(FPS)  # time since last frame in ms
         previous_time_sensitive = time_sensitive
@@ -203,6 +210,13 @@ def main():
 
         if previous_time_sensitive and not time_sensitive:
             state.player.reset_ap()
+            ratio = state.player.carry_weight / state.player.max_carry_weight
+            if ratio >= 1.5:
+                state.player.ap = max(0, state.player.ap - 3)
+            elif ratio >= 1.25:
+                state.player.ap = max(0, state.player.ap - 2)
+            elif ratio >= 1.0:
+                state.player.ap = max(0, state.player.ap - 1)
             add_message("Combat over. You catch your breath.", state.messages)
 
         # --- INPUT ---
@@ -230,6 +244,10 @@ def main():
                             state.player.inventory.append(item)
                             loot_target.inventory.remove(item)
                             add_message(f"You take the {item.name}.", state.messages)
+                            if isinstance(item, GoldMedal):
+                                add_message("Congratulations! You found the Gold Medal and won the game!", state.messages)
+                                save_progress(state.player.total_exp, state.player.level, state.player.attributes)
+                                ####SHOW WIN SCREEN HERE INSTEAD OF EXITING IMMEDIATELY
                             if not loot_target.inventory:
                                 show_loot_popup = False
                     continue
@@ -240,12 +258,6 @@ def main():
                         button_clicked = True
                         if button.text == "attack":
                             # TODO: implement attack mode
-                            add_message(f"You selected: {button.text}", state.messages)
-                        elif button.text == "loot":
-                            # TODO: implement loot mode
-                            add_message(f"You selected: {button.text}", state.messages)
-                        elif button.text == "move":
-                            # TODO: implement move mode
                             add_message(f"You selected: {button.text}", state.messages)
                         elif button.text == "look":
                             # TODO: implement look mode
@@ -290,6 +302,10 @@ def main():
                                 if time_sensitive:
                                     state.player.ap -= 1  # looting costs 1 AP if there are active enemies
                                 add_message(f"You pick up the {items[0].name}.", state.messages)
+                                if isinstance(items[0], GoldMedal):
+                                    add_message("Congratulations! You found the Gold Medal and won the game!", state.messages)
+                                    save_progress(state.player.total_exp, state.player.level, state.player.attributes)
+                                    ####SHOW WIN SCREEN HERE INSTEAD OF EXITING IMMEDIATELY
                             else:
                                 adjacent = get_adjacent_tile(clicked_tile, state.player.position, state.current_room)
                                 if move_to_adjacent(state.player, items[0], state.current_room, time_sensitive, state.messages):
@@ -298,6 +314,10 @@ def main():
                                     state.player.inventory.append(items[0])
                                     state.current_room.contents["items"].remove(items[0])
                                     add_message(f"You move next to the {items[0].name} and pick it up.", state.messages)
+                                    if isinstance(items[0], GoldMedal):
+                                        add_message("Congratulations! You found the Gold Medal and won the game!", state.messages)
+                                        save_progress(state.player.total_exp, state.player.level, state.player.attributes)
+                                        ####SHOW WIN SCREEN HERE INSTEAD OF EXITING IMMEDIATELY
 
                                 
                         elif entities and entities[0].is_dead:
@@ -335,19 +355,18 @@ def main():
                                             execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages)
                                         else:
                                             add_message("Not enough AP to attack after moving.", state.messages)
-
-                        elif items or (entities and entities[0].is_dead):
-                            # loot
-                            pass
                         else:
-                            dx = abs(clicked_tile[0] - state.player.position[0])
-                            dy = abs(clicked_tile[1] - state.player.position[1])
-                            distance = dx + dy
-                            if distance <= state.player.ap:
-                                state.player.ap -= distance
-                                state.player.position = clicked_tile
+                            if time_sensitive:
+                                dx = abs(clicked_tile[0] - state.player.position[0])
+                                dy = abs(clicked_tile[1] - state.player.position[1])
+                                distance = dx + dy
+                                if distance <= state.player.ap:
+                                    state.player.ap -= distance
+                                    state.player.position = clicked_tile
+                                else:
+                                    add_message("Not enough AP to move there.", state.messages)
                             else:
-                                add_message("Not enough AP to move there.", state.messages)
+                                state.player.position = clicked_tile
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     show_traverse_popup = False
@@ -385,17 +404,19 @@ def main():
 
         # 2. Grid background, with red tint in combat
         pygame.draw.rect(screen, (40, 40, 80), (GRID_X, GRID_Y, GRID_WIDTH, GRID_HEIGHT))
+        screen.blit(dungeon_map, (GRID_X, GRID_Y))
         if time_sensitive:
             overlay = pygame.Surface((GRID_WIDTH, GRID_HEIGHT), pygame.SRCALPHA)
             overlay.fill((100, 0, 0, 50))  # semi-transparent red
             screen.blit(overlay, (GRID_X, GRID_Y))
 
-        # 3. Individual tiles
-        for row in range(GRID_ROWS):
-            for col in range(GRID_COLS):
-                x = GRID_X + col * TILE_SIZE
-                y = GRID_Y + row * TILE_SIZE
-                pygame.draw.rect(screen, (50, 50, 90), (x, y, TILE_SIZE - 2, TILE_SIZE - 2))
+        # 3. Grid lines
+        for row in range(GRID_ROWS + 1):
+            y = GRID_Y + row * TILE_SIZE
+            pygame.draw.line(screen, (30, 30, 50), (GRID_X, y), (GRID_X + GRID_WIDTH, y), 1)
+        for col in range(GRID_COLS + 1):
+            x = GRID_X + col * TILE_SIZE
+            pygame.draw.line(screen, (30, 30, 50), (x, GRID_Y), (x, GRID_Y + GRID_HEIGHT), 1)
 
         # 4. Character sprites (on top of tiles)
 
