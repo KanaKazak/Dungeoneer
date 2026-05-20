@@ -231,6 +231,70 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.MOUSEBUTTONDOWN:
+                if show_inventory:
+                # rebuild item_rects for click detection
+                    categories = ["weapon", "consumable", "misc", "quest"]
+                    y_offset = 150  # inv_rect.y + 100
+                    inv_item_rects = []
+                    for category in categories:
+                        cat_items = [i for i in state.player.inventory if i.category == category]
+                        if not cat_items:
+                            continue
+                        y_offset += 22
+                        for item in cat_items:
+                            item_rect = pygame.Rect(120, y_offset, 780, 22)
+                            inv_item_rects.append((item, item_rect))
+                            y_offset += 24
+                        y_offset += 8
+                    
+                    if show_item_submenu:
+                        # handle submenu clicks
+                        from logic.items import Weapon, Consumable
+                        sub_options = []
+                        if isinstance(selected_item, Weapon):
+                            sub_options = ["Equip", "Drop", "Examine"]
+                        elif isinstance(selected_item, Consumable):
+                            sub_options = ["Use", "Drop", "Examine"]
+                        else:
+                            sub_options = ["Drop", "Examine"]
+                        sx, sy = submenu_pos
+                        for i, opt in enumerate(sub_options):
+                            opt_rect = pygame.Rect(sx + 5, sy + 5 + i * 28, 120, 24)
+                            if opt_rect.collidepoint(event.pos):
+                                if opt == "Equip":
+                                    state.player.equipped_weapon = selected_item
+                                    add_message(f"Equipped {selected_item.name}.", state.messages)
+                                elif opt == "Use":
+                                    from logic.items import Consumable, HealthPotion
+                                    if isinstance(selected_item, HealthPotion):
+                                        state.player.hp = min(state.player.hp_max, state.player.hp + selected_item.effect)
+                                        state.player.inventory.remove(selected_item)
+                                        add_message(f"Used {selected_item.name}. Restored {selected_item.effect} HP.", state.messages)
+                                elif opt == "Drop":
+                                    state.player.inventory.remove(selected_item)
+                                    selected_item.position = state.player.position
+                                    state.current_room.contents["items"].append(selected_item)
+                                    add_message(f"Dropped {selected_item.name}.", state.messages)
+                                elif opt == "Examine":
+                                    add_message(selected_item.describe(), state.messages)
+                                show_item_submenu = False
+                                selected_item = None
+                        continue
+                    
+                    # click on item
+                    clicked_item = None
+                    for item, rect in inv_item_rects:
+                        if rect.collidepoint(event.pos):
+                            clicked_item = item
+                            break
+                    if clicked_item:
+                        selected_item = clicked_item
+                        show_item_submenu = True
+                        submenu_pos = event.pos
+                    else:
+                        show_item_submenu = False
+                        selected_item = None
+                    continue
                 if show_traverse_popup:
                     exits = list(state.current_room.exits.keys())
                     for i, direction in enumerate(exits):
@@ -268,8 +332,9 @@ def main():
                             add_message(f"You selected: {button.text}", state.messages)
                             add_message(state.current_room.describe(), state.messages)
                         elif button.text == "inventory":
-                            # TODO: implement inventory screen
                             add_message(f"You selected: {button.text}", state.messages)
+                            show_inventory = not show_inventory
+                            show_item_submenu = False
                         elif button.text == "traverse":
 
                             exits = list(state.current_room.exits.keys())
@@ -373,11 +438,23 @@ def main():
                             else:
                                 state.player.position = clicked_tile
             if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_i:
+                    show_inventory = not show_inventory
+                    show_item_submenu = False
                 if event.key == pygame.K_ESCAPE:
                     show_traverse_popup = False
                     show_loot_popup = False
                 if event.key == pygame.K_TAB and show_loot_popup:
                     loot_dual_panel = not loot_dual_panel
+                if event.key == pygame.K_ESCAPE:
+                    if show_item_submenu:
+                        show_item_submenu = False
+                    elif show_inventory:
+                        show_inventory = False
+                    else:
+                        show_traverse_popup = False
+                        show_loot_popup = False
+                        loot_dual_panel = False
 
         # --- UPDATE ---
         # Advance player animation timer
@@ -541,8 +618,83 @@ def main():
                 screen.blit(font.render("Nothing left.", True, (180, 180, 180)), 
                         (popup_rect.x + 10, popup_rect.y + 40))
 
+        # 11. Inventory panel
+        if show_inventory:
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            screen.blit(overlay, (0, 0))
+            
+            inv_rect = pygame.Rect(100, 50, 824, 668)
+            pygame.draw.rect(screen, (30, 30, 50), inv_rect)
+            pygame.draw.rect(screen, (100, 100, 150), inv_rect, 2)
+            
+            # title
+            title = font.render("INVENTORY", True, (255, 255, 200))
+            screen.blit(title, (inv_rect.x + 20, inv_rect.y + 10))
+            
+            # equipped weapon
+            equipped_text = f"Equipped: {state.player.equipped_weapon.name}" if state.player.equipped_weapon else "Equipped: Unarmed"
+            screen.blit(font.render(equipped_text, True, (200, 200, 100)), (inv_rect.x + 20, inv_rect.y + 35))
+            
+            # carry weight bar
+            cw = state.player.carry_weight
+            mcw = state.player.max_carry_weight
+            weight_text = f"Weight: {cw:.1f} / {mcw:.1f} kg"
+            screen.blit(font.render(weight_text, True, (255, 255, 255)), (inv_rect.x + 20, inv_rect.y + 55))
+            bar_rect = pygame.Rect(inv_rect.x + 20, inv_rect.y + 75, 400, 12)
+            pygame.draw.rect(screen, (60, 60, 60), bar_rect)
+            fill_ratio = min(cw / mcw, 1.5)
+            bar_color = (220, 50, 50) if cw > mcw else (80, 200, 80)
+            pygame.draw.rect(screen, bar_color, pygame.Rect(bar_rect.x, bar_rect.y, int(bar_rect.width * fill_ratio / 1.5), bar_rect.height))
+            pygame.draw.rect(screen, (150, 150, 150), bar_rect, 1)
+            
+            # items by category
+            categories = ["weapon", "consumable", "misc", "quest"]
+            item_rects = []  # store (item, rect) for click detection
+            y_offset = inv_rect.y + 100
+            for category in categories:
+                cat_items = [i for i in state.player.inventory if i.category == category]
+                if not cat_items:
+                    continue
+                # category header
+                header = font.render(f"-- {category.upper()} --", True, (180, 180, 100))
+                screen.blit(header, (inv_rect.x + 20, y_offset))
+                y_offset += 22
+                for item in cat_items:
+                    item_rect = pygame.Rect(inv_rect.x + 20, y_offset, 780, 22)
+                    item_rects.append((item, item_rect))
+                    color = (100, 100, 160) if item == selected_item else (0, 0, 0, 0)
+                    if item_rect.collidepoint(mouse_pos):
+                        color = (70, 70, 120)
+                    if color != (0, 0, 0, 0):
+                        pygame.draw.rect(screen, color, item_rect)
+                    item_text = f"{item.name}  [{item.weight}kg]  {item.describe()[:40]}"
+                    screen.blit(font.render(item_text, True, (220, 220, 220)), (item_rect.x + 5, item_rect.y + 2))
+                    y_offset += 24
+                y_offset += 8
 
-        # 11. Drawing a tooltip when mouse hovers over a tile
+            # item submenu
+            if show_item_submenu and selected_item:
+                sx, sy = submenu_pos
+                sub_rect = pygame.Rect(sx, sy, 130, 90)
+                pygame.draw.rect(screen, (40, 40, 60), sub_rect)
+                pygame.draw.rect(screen, (150, 150, 200), sub_rect, 1)
+                
+                from logic.items import Weapon, Consumable
+                sub_options = []
+                if isinstance(selected_item, Weapon):
+                    sub_options = ["Equip", "Drop", "Examine"]
+                elif isinstance(selected_item, Consumable):
+                    sub_options = ["Use", "Drop", "Examine"]
+                else:
+                    sub_options = ["Drop", "Examine"]
+                
+                for i, opt in enumerate(sub_options):
+                    opt_rect = pygame.Rect(sx + 5, sy + 5 + i * 28, 120, 24)
+                    color = (80, 80, 140) if opt_rect.collidepoint(mouse_pos) else (50, 50, 80)
+                    pygame.draw.rect(screen, color, opt_rect)
+                    screen.blit(font.render(opt, True, (255, 255, 255)), (opt_rect.x + 5, opt_rect.y + 4))
+        # 12. Drawing a tooltip when mouse hovers over a tile
         if hovered_tile is not None:
             entities, items = get_tile_contents(hovered_tile, state)
             if hovered_tile == state.player.position:
@@ -569,7 +721,7 @@ def main():
                 tooltip_text = f"Move here (distance: {distance})"
             draw_tooltip(screen, font, mouse_pos, tooltip_text)
 
-        # 12. Flip to display
+        # 13. Flip to display
         pygame.display.flip()
 
     pygame.quit()
