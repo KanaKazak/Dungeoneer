@@ -151,6 +151,11 @@ def main():
     font = pygame.font.SysFont(None, 24)
     show_traverse_popup = False
     show_loot_popup = False
+    loot_dual_panel = False      # tab toggles this
+    show_inventory = False       # inventory button
+    selected_item = None         # item that was clicked
+    show_item_submenu = False    # 
+
     # --- Action buttons ---
     actions = ["look", "attack","inventory", "traverse", "end turn"]
     buttons = []
@@ -260,8 +265,8 @@ def main():
                             # TODO: implement attack mode
                             add_message(f"You selected: {button.text}", state.messages)
                         elif button.text == "look":
-                            # TODO: implement look mode
                             add_message(f"You selected: {button.text}", state.messages)
+                            add_message(state.current_room.describe(), state.messages)
                         elif button.text == "inventory":
                             # TODO: implement inventory screen
                             add_message(f"You selected: {button.text}", state.messages)
@@ -371,6 +376,8 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     show_traverse_popup = False
                     show_loot_popup = False
+                if event.key == pygame.K_TAB and show_loot_popup:
+                    loot_dual_panel = not loot_dual_panel
 
         # --- UPDATE ---
         # Advance player animation timer

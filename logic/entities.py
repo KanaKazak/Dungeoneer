@@ -164,7 +164,6 @@ class Player(Character):
 
         self.max_carry_weight = 50 + self.attributes.STR * 2
 
-
     # ---------------------------------------------------------
     # DESCRIPTION
     # ---------------------------------------------------------
@@ -225,6 +224,7 @@ class Player(Character):
                 print(f"{choice} increased!\n{self.attributes}")
             else:
                 print("Cancelled.")
+
 
 
 # =========================================================

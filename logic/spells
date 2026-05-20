@@ -1,0 +1,164 @@
+from logic.damage import DamageType
+
+class Spell:
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=None):
+        self.name = name
+        self.damage = damage
+        self.ap_cost = ap_cost
+        self.tag = tag
+        self.ranged = ranged
+
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a spell that deals {self.damage} damage."
+        )
+
+class Firebolt(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=True):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(fire = 12)
+        ap_cost = 2
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a basic fire spell "
+            f"It deals {self.damage} damage from a distance."
+        )
+    
+class FrostShard(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=True):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(cold = 9)
+        ap_cost = 2
+        #Effect: -1 AP next turn (50% chance) to be implemented
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+    def describe(self):
+        return (
+            f"{self.name} is a basic frost spell."
+            f"It deals {self.damage} damage from a distance."
+        )
+
+class Spark(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=True):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(lightning = 5)
+        ap_cost = 1
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+    def describe(self):
+        return (
+            f"{self.name} is a lightning fire spell."
+            f"It deals {self.damage} damage from a distance."
+        )
+
+class FlameWave(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=True):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(fire = 16)
+        ap_cost = 3
+        #Forcing AGI save to be implemented
+        #AOE to be implemented
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a basic fire spell "
+            f"It deals {self.damage} damage from a distance."
+        )
+
+class DrainTouch(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=False):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(necrotic = 8)
+        ap_cost = 2
+        #Heal player for half the damage dealt to be implemented
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a necrotic spell."
+            f"It deals {self.damage} damage."
+        )
+
+class ArcaneShield(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=False):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(force = 0)
+        ap_cost = 2
+        #Grants +10 AC to player for 1 turn to be implemented
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a protective spell."
+            f"It grants bonus AC."
+        )
+    
+class MindJab(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=True):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(psychic = 10)
+        ap_cost = 2
+        #Forcing WIS save to be implemented
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a psychic spell."
+            f"It deals {self.damage} damage from a distance."
+        )
+    
+class FocusPing(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=True):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(force = 5)
+        ap_cost = 1
+        #+15 to spell attack roll to be implemented
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a divination spell."
+            f"It grants a bonus to spell attacks for the next turn."
+        )
+    
+class ChillTouch(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=False):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(cold = 6)
+        ap_cost = 1
+        #Target can't heal for 1 turn to be implemented
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a necrotic spell."
+            f"It deals {self.damage} damage and prevents healing."
+        )
+
+class BloodFlick(Spell):
+    def __init__(self, name, damage: DamageType, ap_cost, tag="int", ranged=True):
+        super().__init__(name, damage, ap_cost, tag, ranged)
+        self.damage = DamageType(necrotic = 4)
+        ap_cost = 1
+        #Heals player for half the damage dealt to be implemented
+    def __str__(self):
+        return f"{self.name} (Spell, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a necrotic spell."
+            f"It deals {self.damage} damage and heals the caster."
+        )

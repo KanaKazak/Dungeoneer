@@ -1,5 +1,6 @@
 import random
 
+from logic.damage import DamageType
 from logic.entities import Character
 from logic.input_handler import get_input
 from logic.items import Weapon
@@ -93,14 +94,15 @@ def calculate_hit(attacker, defender):
 
 
 def calculate_damage(attacker, defender):
-    """
-    Calculates final damage output.
-    """
     prof_bonus = attacker.level * 2
-    base_damage = attacker.damage
+    base_damage = attacker.damage  # DamageType object
     attr_bonus = get_attack_bonus(attacker) / 10
-
-    total_damage = base_damage + attr_bonus + prof_bonus
+    
+    if isinstance(base_damage, DamageType):
+        total_damage = base_damage.total() + attr_bonus + prof_bonus
+    else:
+        total_damage = base_damage + attr_bonus + prof_bonus
+    
     return int(total_damage)
 
 
@@ -122,52 +124,75 @@ def is_within_melee_range(attacker, target):
 # =========================================================
 
 def attack(attacker, current_room, time_sensitive=False, messages=None):
-    """
-    Handles selecting and executing an attack.
-    """
-    targets = [
-        e for e in current_room.contents["entities"]
-        if isinstance(e, Character) and e != attacker and not e.is_dead
-    ]
-
-    if not targets:
-        log("There are no enemies to attack.", messages)
-        return
-
-    # Filter valid melee targets
-    targets_in_range = [
-        enemy for enemy in targets
-        if is_within_melee_range(attacker, enemy)
-    ]
-
-    if not targets_in_range:
-        log("There are no enemies within melee range to attack.", messages)
-        return
-
-    # Auto-attack if only one target
-    if len(targets_in_range) == 1:
-        execute_attack(attacker, targets_in_range[0], current_room, time_sensitive, messages)
-        return
-
-    # Player chooses target
-    for i, e in enumerate(targets_in_range, 1):
-        log(f"{i}. {e.name} at {e.position}", messages)
-
-    choice = get_input("Who do you want to attack? ", attacker)
-
-    if choice == "none":
-        return
-
-    if choice in [enemy.name.lower() for enemy in targets_in_range]:
-        enemy = next(e for e in targets_in_range if e.name.lower() == choice)
-        execute_attack(attacker, enemy, current_room, time_sensitive, messages)
+    if attacker.equipped_weapon and attacker.equipped_weapon.ranged:
+        targets = [
+            e for e in current_room.contents["entities"]
+            if isinstance(e, Character) and e != attacker and not e.is_dead
+        ]
+        if not targets:
+            log("There are no enemies to attack.", messages)
+            return
+        if len(targets) == 1:
+            execute_attack(attacker, targets[0], current_room, time_sensitive, messages)
+            return
+        for i, e in enumerate(targets, 1):
+            log(f"{i}. {e.name} at {e.position}", messages)
+        choice = get_input("Who do you want to attack? ", attacker)
+        if choice == "none":
+            return
+        if choice in [enemy.name.lower() for enemy in targets]:
+            enemy = next(e for e in targets if e.name.lower() == choice)
+            execute_attack(attacker, enemy, current_room, time_sensitive, messages)
+        else:
+            log("Invalid choice. No attack executed.", messages)
     else:
-        log("Invalid choice. No attack executed.", messages)
+        """
+        Handles selecting and executing an attack.
+        """
+        targets = [
+            e for e in current_room.contents["entities"]
+            if isinstance(e, Character) and e != attacker and not e.is_dead
+        ]
+
+        if not targets:
+            log("There are no enemies to attack.", messages)
+            return
+
+        # Filter valid melee targets
+        targets_in_range = [
+            enemy for enemy in targets
+            if is_within_melee_range(attacker, enemy)
+        ]
+
+        if not targets_in_range:
+            log("There are no enemies within melee range to attack.", messages)
+            return
+
+        # Auto-attack if only one target
+        if len(targets_in_range) == 1:
+            execute_attack(attacker, targets_in_range[0], current_room, time_sensitive, messages)
+            return
+
+        # Player chooses target
+        for i, e in enumerate(targets_in_range, 1):
+            log(f"{i}. {e.name} at {e.position}", messages)
+
+        choice = get_input("Who do you want to attack? ", attacker)
+
+        if choice == "none":
+            return
+
+        if choice in [enemy.name.lower() for enemy in targets_in_range]:
+            enemy = next(e for e in targets_in_range if e.name.lower() == choice)
+            execute_attack(attacker, enemy, current_room, time_sensitive, messages)
+        else:
+            log("Invalid choice. No attack executed.", messages)
 
 
 # =========================================================
 # COMBAT RESOLUTION
 # =========================================================
+
 
 def execute_attack(attacker, target, current_room, time_sensitive=False, messages=None):
     """

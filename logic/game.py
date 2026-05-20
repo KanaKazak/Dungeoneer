@@ -4,7 +4,7 @@ from logic.combat import attack, determine_initiative
 from logic.dungeon import Room, Dungeon
 from logic.entities import Player, Goblin
 from logic.inventory_manipulation import inventory_manipulation
-from logic.items import Club, GoldMedal, Sword, HealthPotion
+from logic.items import Club, DamageType, GoldMedal, Sword, HealthPotion
 from logic.loot import loot
 from logic.movement import move_player
 from logic.progress import save_progress
@@ -286,7 +286,7 @@ def spawn_goblin(room):
     club = Club(
         name="Club",
         position=goblin.position,
-        damage=4,
+        damage=DamageType(bludgeoning=4),
         ap_cost=1
     )
 
@@ -304,7 +304,7 @@ def spawn_loot(room):
         item = Sword(
             name="Rusty Sword",
             position=position,
-            damage=5,
+            damage=DamageType(slashing=7),
             ap_cost=2
         )
     else:

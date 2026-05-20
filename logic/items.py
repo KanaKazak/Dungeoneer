@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from logic.damage import DamageType
 from logic.entities import Entity
 
 
@@ -25,6 +26,7 @@ class Item(Entity):
         pass
 
 
+
 # =========================================================
 # WEAPONS
 # =========================================================
@@ -34,17 +36,18 @@ class Weapon(Item):
     Base weapon class.
     """
 
-    def __init__(self, name, position, damage, ap_cost, tag=None):
+    def __init__(self, name, position, damage: DamageType, ap_cost, tag=None, ranged=None):
         super().__init__(name, position, category="weapon")
 
         self.damage = damage
         self.ap_cost = ap_cost
         self.tag = tag
+        self.ranged = ranged
 
     def __repr__(self):
         return (
             f"Weapon(name={self.name}, position={self.position}, "
-            f"damage={self.damage}, ap_cost={self.ap_cost}, tag={self.tag})"
+            f"damage={self.damage}, ap_cost={self.ap_cost}, tag={self.tag}, ranged={self.ranged})"
         )
 
     def describe(self):
@@ -60,8 +63,8 @@ class Sword(Weapon):
     Versatile weapon type.
     """
 
-    def __init__(self, name, position, damage, ap_cost, tag="versatile"):
-        super().__init__(name, position, damage, ap_cost, tag)
+    def __init__(self, name, position, damage: DamageType, ap_cost, tag="versatile", ranged=False):
+        super().__init__(name, position, damage, ap_cost, tag, ranged)
         self.weight = 5
 
     def __str__(self):
@@ -79,8 +82,8 @@ class Club(Weapon):
     Heavy blunt weapon.
     """
 
-    def __init__(self, name, position, damage, ap_cost, tag="heavy"):
-        super().__init__(name, position, damage, ap_cost, tag)
+    def __init__(self, name, position, damage: DamageType, ap_cost, tag="heavy", ranged=False):
+        super().__init__(name, position, damage, ap_cost, tag, ranged)
         self.weight = 4
 
     def __str__(self):
@@ -92,6 +95,23 @@ class Club(Weapon):
             f"It deals {self.damage} damage."
         )
 
+class Bow(Weapon):
+    """
+    Light ranged weapon.
+    """
+
+    def __init__(self, name, position, damage: DamageType, ap_cost, tag="light", ranged=True):
+        super().__init__(name, position, damage, ap_cost, tag, ranged)
+        self.weight = 3
+
+    def __str__(self):
+        return f"{self.name} (Bow, Damage: {self.damage})"
+
+    def describe(self):
+        return (
+            f"{self.name} is a finely crafted elven bow. "
+            f"It deals {self.damage} damage from a distance."
+        )
 
 # =========================================================
 # CONSUMABLES

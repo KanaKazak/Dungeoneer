@@ -20,6 +20,7 @@
 - [ ] No resting between rooms
 - [ ] Actual consequences for taking damage
 - [ ] Refactor: extract move_and_act(player, target_pos, action, state) helper to reduce repetition in renderer.py
+- [ ] Calculate_damage to return a DamageType with bonuses applied, so resistances and vulnerabilities work. 
 
 ## Items
 - [ ] Consumable breaks when attacked
