@@ -8,3 +8,5 @@ class UIState:
         self.show_item_submenu = False
         self.submenu_pos = None
         self.loot_dual_panel = False
+        self.show_levelup_popup = False
+        self.attribute_points = 0

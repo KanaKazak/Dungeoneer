@@ -6,6 +6,7 @@ from logic.input_handler import get_input
 from logic.items import Weapon
 from logic.attributes import Attributes
 from logic.gamestate import log
+from logic.messages import add_message
 
 
 # =========================================================
@@ -194,7 +195,7 @@ def attack(attacker, current_room, time_sensitive=False, messages=None):
 # =========================================================
 
 
-def execute_attack(attacker, target, current_room, time_sensitive=False, messages=None):
+def execute_attack(attacker, target, current_room, time_sensitive=False, state = None):
     """
     Executes full attack resolution (hit, damage, death).
     """
@@ -202,10 +203,10 @@ def execute_attack(attacker, target, current_room, time_sensitive=False, message
 
     # AP check (only in time-sensitive mode)
     if time_sensitive and attacker.ap < ap_cost:
-        log("You don't have enough action points to attack.", messages)
+        log("You don't have enough action points to attack.", state.messages)
         return
 
-    log(f"{attacker.name} attacks {target.name}!", messages)
+    add_message(f"{attacker.name} attacks {target.name}!", state.messages)
 
     if time_sensitive:
         attacker.ap -= ap_cost
@@ -218,7 +219,7 @@ def execute_attack(attacker, target, current_room, time_sensitive=False, message
     if hit == "crit":
         damage = calculate_damage(attacker, target) * 2
         target.take_damage(damage)
-        log(f"Critical hit! {attacker.name} hit {target.name} for {damage} damage! (Roll: {roll})", messages)
+        log(f"Critical hit! {attacker.name} hit {target.name} for {damage} damage! (Roll: {roll})", state.messages)
 
     # -------------------------
     # NORMAL HIT
@@ -226,67 +227,67 @@ def execute_attack(attacker, target, current_room, time_sensitive=False, message
     elif hit == "hit":
         damage = calculate_damage(attacker, target)
         target.take_damage(damage)
-        log(f"{attacker.name} hit {target.name} for {damage} damage! (Roll: {roll})", messages)
+        log(f"{attacker.name} hit {target.name} for {damage} damage! (Roll: {roll})", state.messages)
 
     # -------------------------
     # MISS
     # -------------------------
     elif hit == "miss":
-        log(f"{attacker.name} missed {target.name}! (Roll: {roll})", messages)
+        log(f"{attacker.name} missed {target.name}! (Roll: {roll})", state.messages)
 
     # -------------------------
     # FUMBLE
     # -------------------------
     elif hit == "fumble":
-        log("Critical miss!", messages)
-        handle_fumble(attacker, target, current_room)
+        log("Critical miss!", state.messages)
+        handle_fumble(attacker, target, current_room, state)
 
     # -------------------------
     # POST-ATTACK STATE CHECK
     # -------------------------
     if not target.is_alive():
         target.is_dead = True
-        log(f"You have slain {target.name}!", messages)
+        log(f"You have slain {target.name}!", state.messages)
 
         exp_gained = target.level * 10
-        log(f"You gain {exp_gained} experience points.", messages)
-        attacker.gain_exp(exp_gained)
+        log(f"You gain {exp_gained} experience points.", state.messages)
+        attacker.gain_exp(exp_gained, state)
 
     else:
-        log(f"{target.name} has {target.health} HP left.", messages)
+        log(f"{target.name} has {target.health} HP left.", state.messages)
 
 
 # =========================================================
 # FUMBLE EFFECTS
 # =========================================================
 
-def handle_fumble(attacker, target, current_room, messages=None):
+def handle_fumble(attacker, target, current_room, state):
     """
     Random negative consequence for critical failure.
     """
     effect = random.randint(1, 6)
 
     if effect == 1:
-        log(f"{attacker.name} trips and falls! All AP lost.", messages)
+        log(f"{attacker.name} trips and falls! All AP lost.", state.messages)
         attacker.ap = 0
 
     elif effect == 2:
         damage = calculate_damage(attacker, attacker) // 2
-        log(f"{attacker.name} hits themselves for {damage} damage!", messages)
+        log(f"{attacker.name} hits themselves for {damage} damage!", state.messages)
         attacker.take_damage(damage)
 
     elif effect == 3:
-        log(f"{attacker.name} drops their weapon!", messages)
+        log(f"{attacker.name} drops their weapon!", state.messages)
         # TODO: implement weapon drop system
 
     elif effect == 4:
-        log(f"{attacker.name} stumbles! {target.name} gets a free attack!", messages)
-        execute_attack(target, attacker, current_room, time_sensitive=False, messages=messages)
+        log(f"{attacker.name} stumbles! {target.name} gets a free attack!", state.messages)
+        execute_attack(target, attacker, current_room, time_sensitive=False, state=state)
 
     elif effect == 5:
-        log(f"{attacker.name} pulls a muscle! Movement halved next turn.", messages)
+        log(f"{attacker.name} pulls a muscle! Movement halved next turn.", state.messages)
         attacker.movement_multiplier = 0.5
 
     elif effect == 6:
-        log(f"Embarrassing miss! {target.name} gains +10 to next attack.", messages)
+        log(f"Embarrassing miss! {target.name} gains +10 to next attack.", state.messages)
         target.attack_bonus_temp = 10

@@ -1,3 +1,6 @@
+from logic.events import EventQueue
+
+
 class GameState:
     def __init__(self):
         self.player = None
@@ -5,6 +8,7 @@ class GameState:
         self.dungeon = None
         self.messages = ["Welcome to Dungeoneer"]
         self.running = True
+        self.events = EventQueue()
 
 def log(text, messages=None):
     if messages is not None:
@@ -13,3 +17,4 @@ def log(text, messages=None):
             messages.pop(0)
     else:
         print(text)
+

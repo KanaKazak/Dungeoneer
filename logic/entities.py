@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+from email.mime import message
 import random
 
 from logic.input_handler import get_input
+from logic.messages import add_message
 from logic.progress import load_progress
 from logic.attributes import Attributes
 
@@ -116,18 +118,20 @@ class Character(Entity):
     # EXPERIENCE & LEVELING
     # ---------------------------------------------------------
 
-    def gain_exp(self, amount):
+    def gain_exp(self, amount, state):
         multiplier = 1 + int(self.attributes.get_attribute_bonus("INT")) * 0.005
         self.total_exp += int(amount * multiplier)
+        if self.total_exp >= self.exp_threshold:
+             state.events.emit("level_up", player=self)
 
-    def level_up(self):
+    def level_up(self, messages):
         self.total_exp -= self.exp_threshold
         self.level += 1
         self.exp_threshold = self.level * 100
 
-        print(
+        add_message(
             f"{self.name} has leveled up! They are now level {self.level}!\n"
-            "For now this does nothing, but later it will increase stats and unlock abilities."
+            "For now this does nothing, but later it will increase stats and unlock abilities.", messages
         )
 
 
@@ -181,7 +185,7 @@ class Player(Character):
     # PLAYER LEVEL UP (ATTRIBUTE ALLOCATION)
     # ---------------------------------------------------------
 
-    def level_up(self):
+    def level_up(self, messages):
         super().level_up()
 
         attribute_points = 5

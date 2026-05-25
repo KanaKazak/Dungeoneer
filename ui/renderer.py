@@ -4,6 +4,7 @@ import os
 
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from logic import attributes
 from ui.uistate import UIState
 from logic.gamestate import GameState
 from logic.game import initialize_game, starting_point
@@ -241,6 +242,20 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.MOUSEBUTTONDOWN:
+                if ui.show_levelup_popup:
+                    y_offset = 150 # levelup_rect.y + 150
+                    attributes = ["STR", "CON", "DEX", "AGI", "INT", "WIS", "CHA", "LUCK"]
+                    for attr in attributes:
+                        btn_rect = pygame.Rect(300, y_offset - 2, 40, 22)
+                        if btn_rect.collidepoint(event.pos) and ui.attribute_points > 0:
+                            current_value = getattr(state.player.attributes, attr)
+                            setattr(state.player.attributes, attr, current_value + 1)
+                            ui.attribute_points -= 1
+                        y_offset += 35
+                    if ui.attribute_points == 0 and pygame.Rect(120, 450, 120, 35).collidepoint(event.pos):
+                        save_progress(state.player.total_exp, state.player.level, state.player.attributes)
+                        ui.show_levelup_popup = False
+                    continue  # ignore other clicks when level up popup is active
                 if ui.show_inventory:
                 # rebuild item_rects for click detection
                     categories = ["weapon", "consumable", "misc", "quest"]
@@ -387,7 +402,7 @@ def main():
                             # enemy turns
                             for entity in state.current_room.contents["entities"]:
                                 if entity.is_enemy and not entity.is_dead:
-                                    enemy_turn(entity, state.player, state.current_room, state.messages)
+                                    enemy_turn(entity, state.player, state.current_room, state)
                             add_message("Turn ended.", state.messages)
                 if not button_clicked and not ui.show_traverse_popup:
                     time_sensitive = any(e for e in state.current_room.contents["entities"] if not e.is_dead and e.is_enemy)
@@ -421,19 +436,19 @@ def main():
                         elif entities and not entities[0].is_dead:
                             if state.player.equipped_weapon is not None and state.player.equipped_weapon.ranged:
                                 if state.player.ap >= state.player.attack_ap_cost():
-                                    execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages)
+                                    execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, state=state)
                                 else:
                                     add_message("Not enough AP to attack.", state.messages)
                             else:
                                 if is_within_melee_range(state.player, entities[0]):
                                     ap_cost = state.player.attack_ap_cost()
                                     if state.player.ap >= ap_cost:
-                                        execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages)
+                                        execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, state=state)
                                     else:
                                         add_message("Not enough AP to attack.", state.messages)
 
                                 else:
-                                    move_and_act(state, entities[0], time_sensitive, state.player.attack_ap_cost(), lambda: execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages))
+                                    move_and_act(state, entities[0], time_sensitive, state.player.attack_ap_cost(), lambda: execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, state=state))
                         else:
                             if time_sensitive:
                                 dx = abs(clicked_tile[0] - state.player.position[0])
@@ -489,6 +504,13 @@ def main():
         for button in buttons:
             button.update_hover(mouse_pos)
 
+
+        # --- PROCESS EVENTS ---
+        for event in state.events.flush():
+            if event["type"] == "level_up":
+                ui.show_levelup_popup = True
+                ui.attribute_points = 5
+                add_message(f"You leveled up! You are now level {state.player.level}!", state.messages)
 
         # --- DRAW (order matters — things drawn later appear on top) ---
 
@@ -771,8 +793,41 @@ def main():
                 distance = dx + dy
                 tooltip_text = f"Move here (distance: {distance})"
             draw_tooltip(screen, font, mouse_pos, tooltip_text)
+        # 13. Level up popup
+        if ui.show_levelup_popup:
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            screen.blit(overlay, (0, 0))
+            
+            levelup_rect = pygame.Rect(100, 50, 824, 668)
+            pygame.draw.rect(screen, (30, 30, 50), levelup_rect)
+            pygame.draw.rect(screen, (100, 100, 150), levelup_rect, 2)
+            
+            # title
+            title = font.render("LEVEL UP", True, (255, 255, 200))
+            screen.blit(title, (levelup_rect.x + 20, levelup_rect.y + 10))
+            points_text = font.render(f"Attribute points to spend: {ui.attribute_points}", True, (255, 255, 255))
+            screen.blit(points_text, (levelup_rect.x + 20, levelup_rect.y + 50))
+            attributes = ["STR", "CON", "DEX", "AGI", "INT", "WIS", "CHA", "LUCK"]
+            y_offset = levelup_rect.y + 100
+            for attr in attributes:
+                value = getattr(state.player.attributes, attr)
+                attr_text = font.render(f"{attr}: {value}", True, (220, 220, 220))
+                screen.blit(attr_text, (levelup_rect.x + 20, y_offset))
+                
+                btn_rect = pygame.Rect(levelup_rect.x + 200, y_offset - 2, 40, 22)
+                color = (80, 80, 140) if btn_rect.collidepoint(mouse_pos) else (50, 50, 80)
+                pygame.draw.rect(screen, color, btn_rect)
+                screen.blit(font.render("+", True, (255, 255, 255)), (btn_rect.x + 14, btn_rect.y + 3))
+                
+                y_offset += 35
+            if ui.attribute_points == 0:
+                confirm_rect = pygame.Rect(levelup_rect.x + 20, levelup_rect.y + 400, 120, 35)
+                color = (80, 140, 80) if confirm_rect.collidepoint(mouse_pos) else (50, 100, 50)
+                pygame.draw.rect(screen, color, confirm_rect)
+                screen.blit(font.render("Confirm", True, (255, 255, 255)), (confirm_rect.x + 20, confirm_rect.y + 8))
 
-        # 13. Flip to display
+        # 14. Flip to display
         pygame.display.flip()
 
     pygame.quit()
