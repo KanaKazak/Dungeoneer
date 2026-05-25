@@ -10,6 +10,9 @@ from logic.movement import move_player
 from logic.progress import save_progress
 from logic.input_handler import get_input
 from logic.enemy_ai import enemy_turn
+from logic.items import Bow, DamageType
+from logic.messages import add_message
+from logic.gamestate import GameState
 
 
 # =========================================================
@@ -25,6 +28,8 @@ room_table = {
 }
 
 starting_point = (5, 1)
+
+
 
 
 # =========================================================
@@ -47,6 +52,14 @@ def initialize_game(state, player_name = "Hero"): #player name hardcoded for now
     state.player = Player(name=player_name, position=starting_point, health=100)
     state.dungeon, state.current_room = generate_dungeon(state.player)
     state.current_room.is_visited = True
+    bow = Bow(
+    name="Hunting Bow",
+    position=starting_point,
+    damage=DamageType(piercing=6),
+    ap_cost=2
+    )
+    state.player.inventory.append(bow)
+    state.player.equipped_weapon = bow
 
 def start_new_game():
     """

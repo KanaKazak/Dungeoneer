@@ -1,6 +1,7 @@
 from logic.progress import save_progress
 from logic.combat import is_within_melee_range
 from logic.input_handler import get_input
+from logic.messages import add_message
 
 
 # =========================================================
@@ -120,7 +121,7 @@ def handle_corpse_loot(player, corpse, time_sensitive):
 # CORE LOOT EXECUTION
 # =========================================================
 
-def execute_loot(player, item, source, time_sensitive=False):
+def execute_loot(player, item, source, time_sensitive=False, messages=None):
     """
     Moves item from world to player inventory.
     """
@@ -131,7 +132,7 @@ def execute_loot(player, item, source, time_sensitive=False):
     player.inventory.append(item)
     source.remove(item)
 
-    print(f"You loot the {item.name}.")
+    add_message(f"You loot the {item.name}.", messages)
 
     # -------------------------
     # WIN CONDITION ITEM

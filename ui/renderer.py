@@ -1,7 +1,10 @@
 import pygame
 import sys
 import os
+
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from ui.uistate import UIState
 from logic.gamestate import GameState
 from logic.game import initialize_game, starting_point
 from logic.combat import is_within_melee_range, execute_attack
@@ -9,6 +12,8 @@ from logic.enemy_ai import enemy_turn
 from logic.movement import get_adjacent_tile, move_to_adjacent
 from logic.items import GoldMedal
 from logic.progress import save_progress
+from logic.loot import loot, execute_loot
+from logic.messages import add_message
 
 # =============================================================================
 # CONSTANTS — all layout values defined here so they're easy to tweak
@@ -85,11 +90,6 @@ def load_frames(sheet, frame_width, frame_height):
         frames.append(frame)
     return frames
 
-def add_message(text, messages):
-    """Add a message to the log, keeping only the last 25."""
-    messages.append(text)
-    if len(messages) > 25:
-        messages.pop(0)
 
 def get_tile_contents(position, state):
     if position is None:
@@ -108,6 +108,22 @@ def draw_tooltip(screen, font, mouse_pos, text):
     pygame.draw.rect(screen, (150, 150, 150), rect, 1)  # border
     screen.blit(label, (rect.x + 5, rect.y + 5))
 
+def move_and_act(state, target, time_sensitive, action_ap_cost, lambda_action):
+    """Move player to target_pos and then perform lambda_action (like attack or loot)."""
+    if move_to_adjacent(state.player, target, state.current_room, time_sensitive, messages=state.messages):
+        if time_sensitive:
+            if state.player.ap >= action_ap_cost:
+                state.player.ap -= action_ap_cost
+                lambda_action()
+            else:
+                add_message("Not enough AP to perform action after moving.", state.messages)
+        else:
+            lambda_action()
+
+def open_loot_popup(entity, ui, state):
+    ui.show_loot_popup = True
+    ui.loot_target = entity
+    add_message(f"What item do you want to loot from the {entity.name}'s corpse?", state.messages)
 
 # =============================================================================
 # BUTTON CLASS
@@ -149,12 +165,7 @@ def main():
     pygame.display.set_caption("Dungeoneer")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 24)
-    show_traverse_popup = False
-    show_loot_popup = False
-    loot_dual_panel = False      # tab toggles this
-    show_inventory = False       # inventory button
-    selected_item = None         # item that was clicked
-    show_item_submenu = False    # 
+    ui = UIState()
 
     # --- Action buttons ---
     actions = ["look", "attack","inventory", "traverse", "end turn"]
@@ -200,7 +211,6 @@ def main():
     state = GameState()
     initialize_game(state)
     running = True
-    loot_target = None
     time_sensitive = False  # whether there are active enemies in the room
     previous_time_sensitive = False # track previous state to detect when combat starts/ends
 
@@ -231,7 +241,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if show_inventory:
+                if ui.show_inventory:
                 # rebuild item_rects for click detection
                     categories = ["weapon", "consumable", "misc", "quest"]
                     y_offset = 150  # inv_rect.y + 100
@@ -247,38 +257,38 @@ def main():
                             y_offset += 24
                         y_offset += 8
                     
-                    if show_item_submenu:
+                    if ui.show_item_submenu:
                         # handle submenu clicks
                         from logic.items import Weapon, Consumable
                         sub_options = []
-                        if isinstance(selected_item, Weapon):
+                        if isinstance(ui.selected_item, Weapon):
                             sub_options = ["Equip", "Drop", "Examine"]
-                        elif isinstance(selected_item, Consumable):
+                        elif isinstance(ui.selected_item, Consumable):
                             sub_options = ["Use", "Drop", "Examine"]
                         else:
                             sub_options = ["Drop", "Examine"]
-                        sx, sy = submenu_pos
+                        sx, sy = ui.submenu_pos
                         for i, opt in enumerate(sub_options):
                             opt_rect = pygame.Rect(sx + 5, sy + 5 + i * 28, 120, 24)
                             if opt_rect.collidepoint(event.pos):
                                 if opt == "Equip":
-                                    state.player.equipped_weapon = selected_item
-                                    add_message(f"Equipped {selected_item.name}.", state.messages)
+                                    state.player.equipped_weapon = ui.selected_item
+                                    add_message(f"Equipped {ui.selected_item.name}.", state.messages)
                                 elif opt == "Use":
                                     from logic.items import Consumable, HealthPotion
-                                    if isinstance(selected_item, HealthPotion):
-                                        state.player.hp = min(state.player.hp_max, state.player.hp + selected_item.effect)
-                                        state.player.inventory.remove(selected_item)
-                                        add_message(f"Used {selected_item.name}. Restored {selected_item.effect} HP.", state.messages)
+                                    if isinstance(ui.selected_item, HealthPotion):
+                                        state.player.hp = min(state.player.hp_max, state.player.hp + ui.selected_item.effect)
+                                        state.player.inventory.remove(ui.selected_item)
+                                        add_message(f"Used {ui.selected_item.name}. Restored {ui.selected_item.effect} HP.", state.messages)
                                 elif opt == "Drop":
-                                    state.player.inventory.remove(selected_item)
-                                    selected_item.position = state.player.position
-                                    state.current_room.contents["items"].append(selected_item)
-                                    add_message(f"Dropped {selected_item.name}.", state.messages)
+                                    state.player.inventory.remove(ui.selected_item)
+                                    ui.selected_item.position = state.player.position
+                                    state.current_room.contents["items"].append(ui.selected_item)
+                                    add_message(f"Dropped {ui.selected_item.name}.", state.messages)
                                 elif opt == "Examine":
-                                    add_message(selected_item.describe(), state.messages)
-                                show_item_submenu = False
-                                selected_item = None
+                                    add_message(ui.selected_item.describe(), state.messages)
+                                ui.show_item_submenu = False
+                                ui.selected_item = None
                         continue
                     
                     # click on item
@@ -288,14 +298,14 @@ def main():
                             clicked_item = item
                             break
                     if clicked_item:
-                        selected_item = clicked_item
-                        show_item_submenu = True
-                        submenu_pos = event.pos
+                        ui.selected_item = clicked_item
+                        ui.show_item_submenu = True
+                        ui.submenu_pos = event.pos
                     else:
-                        show_item_submenu = False
-                        selected_item = None
+                        ui.show_item_submenu = False
+                        ui.selected_item = None
                     continue
-                if show_traverse_popup:
+                if ui.show_traverse_popup:
                     exits = list(state.current_room.exits.keys())
                     for i, direction in enumerate(exits):
                         btn_rect = pygame.Rect(320, 290 + i * 40, 160, 30)
@@ -304,21 +314,42 @@ def main():
                             state.current_room.is_visited = True
                             state.player.position = starting_point
                             add_message(f"You move {direction}.", state.messages)
-                            show_traverse_popup = False
+                            ui.show_traverse_popup = False
                     continue  # ignore clicks on main screen when popup is active
-                if show_loot_popup and loot_target:
-                    for i, item in enumerate(loot_target.inventory):
-                        btn_rect = pygame.Rect(320, 290 + i * 35, 160, 28)
-                        if btn_rect.collidepoint(event.pos):
-                            state.player.inventory.append(item)
-                            loot_target.inventory.remove(item)
-                            add_message(f"You take the {item.name}.", state.messages)
-                            if isinstance(item, GoldMedal):
-                                add_message("Congratulations! You found the Gold Medal and won the game!", state.messages)
-                                save_progress(state.player.total_exp, state.player.level, state.player.attributes)
-                                ####SHOW WIN SCREEN HERE INSTEAD OF EXITING IMMEDIATELY
-                            if not loot_target.inventory:
-                                show_loot_popup = False
+                if ui.show_loot_popup and ui.loot_target:
+                    if ui.loot_dual_panel:
+                        # click left panel — move to player
+                        for i, item in enumerate(ui.loot_target.inventory):
+                            btn_rect = pygame.Rect(172, 219 + i * 30, 330, 25)
+                            if btn_rect.collidepoint(event.pos):
+                                state.player.inventory.append(item)
+                                ui.loot_target.inventory.remove(item)
+                                add_message(f"You take the {item.name}.", state.messages)
+                                if isinstance(item, GoldMedal):
+                                    add_message("You win!", state.messages)
+                                    save_progress(state.player.total_exp, state.player.level, state.player.attributes)
+                                break
+                        # click right panel — drop to target
+                        for i, item in enumerate(state.player.inventory):
+                            btn_rect = pygame.Rect(522, 219 + i * 30, 330, 25)
+                            if btn_rect.collidepoint(event.pos):
+                                state.player.inventory.remove(item)
+                                ui.loot_target.inventory.append(item)
+                                add_message(f"You put {item.name} in the corpse.", state.messages)
+                                break
+                    else:
+                        for i, item in enumerate(ui.loot_target.inventory):
+                            btn_rect = pygame.Rect(347, 219 + i * 30, 330, 25)
+                            if btn_rect.collidepoint(event.pos):
+                                state.player.inventory.append(item)
+                                ui.loot_target.inventory.remove(item)
+                                add_message(f"You take the {item.name}.", state.messages)
+                                if isinstance(item, GoldMedal):
+                                    add_message("You win!", state.messages)
+                                    save_progress(state.player.total_exp, state.player.level, state.player.attributes)
+                                if not ui.loot_target.inventory:
+                                    ui.show_loot_popup = False
+                                break
                     continue
             
                 button_clicked = False
@@ -333,8 +364,8 @@ def main():
                             add_message(state.current_room.describe(), state.messages)
                         elif button.text == "inventory":
                             add_message(f"You selected: {button.text}", state.messages)
-                            show_inventory = not show_inventory
-                            show_item_submenu = False
+                            ui.show_inventory = not ui.show_inventory
+                            ui.show_item_submenu = False
                         elif button.text == "traverse":
 
                             exits = list(state.current_room.exits.keys())
@@ -347,7 +378,7 @@ def main():
                                 add_message(f"You move {direction}.", state.messages)
                             else:
                                 # multiple exits — need to ask player
-                                show_traverse_popup = True
+                                ui.show_traverse_popup = True
                                 add_message(f"Which way? {', '.join(exits)}", state.messages)
                                 # TODO: show direction buttons
                         elif button.text == "end turn":
@@ -358,7 +389,7 @@ def main():
                                 if entity.is_enemy and not entity.is_dead:
                                     enemy_turn(entity, state.player, state.current_room, state.messages)
                             add_message("Turn ended.", state.messages)
-                if not button_clicked and not show_traverse_popup:
+                if not button_clicked and not ui.show_traverse_popup:
                     time_sensitive = any(e for e in state.current_room.contents["entities"] if not e.is_dead and e.is_enemy)
                     clicked_tile = pixel_to_game(event.pos)
                     if clicked_tile is not None:
@@ -377,54 +408,32 @@ def main():
                                     save_progress(state.player.total_exp, state.player.level, state.player.attributes)
                                     ####SHOW WIN SCREEN HERE INSTEAD OF EXITING IMMEDIATELY
                             else:
-                                adjacent = get_adjacent_tile(clicked_tile, state.player.position, state.current_room)
-                                if move_to_adjacent(state.player, items[0], state.current_room, time_sensitive, state.messages):
-                                    if time_sensitive:
-                                        state.player.ap -= 1  # looting costs 1 AP if there are active enemies
-                                    state.player.inventory.append(items[0])
-                                    state.current_room.contents["items"].remove(items[0])
-                                    add_message(f"You move next to the {items[0].name} and pick it up.", state.messages)
-                                    if isinstance(items[0], GoldMedal):
-                                        add_message("Congratulations! You found the Gold Medal and won the game!", state.messages)
-                                        save_progress(state.player.total_exp, state.player.level, state.player.attributes)
-                                        ####SHOW WIN SCREEN HERE INSTEAD OF EXITING IMMEDIATELY
+                                move_and_act(state, items[0], time_sensitive, state.player.loot_ap_cost(), lambda: execute_loot(state.player, items[0], state.current_room.contents["items"], time_sensitive, state.messages))
 
                                 
                         elif entities and entities[0].is_dead:
                             if is_within_melee_range(state.player, entities[0]):
-                                loot_target = entities[0]
-                                show_loot_popup = True
+                                ui.loot_target = entities[0]
+                                ui.show_loot_popup = True
                                 add_message(f"What item do you want to loot from the {entities[0].name}'s corpse?", state.messages)
                             else:
-                                adjacent = get_adjacent_tile(clicked_tile, state.player.position, state.current_room)
-                                if move_to_adjacent(state.player, entities[0], state.current_room, time_sensitive, state.messages):
-                                    show_loot_popup = True
-                                    loot_target = entities[0]
-                                    add_message(f"What item do you want to loot?", state.messages)
-                                    if time_sensitive:
-                                        if state.player.ap >= 1:
-                                            state.player.ap -= 1  # looting costs 1 AP if there are active enemies
-                                        else:                                            
-                                            add_message("Not enough AP to loot.", state.messages)
-                                            show_loot_popup = False
+                                move_and_act(state, entities[0], time_sensitive, state.player.loot_ap_cost(), lambda: open_loot_popup(entities[0], ui, state))
                         elif entities and not entities[0].is_dead:
-                            if is_within_melee_range(state.player, entities[0]):
-                                ap_cost = state.player.attack_ap_cost()
-                                if state.player.ap >= ap_cost:
+                            if state.player.equipped_weapon is not None and state.player.equipped_weapon.ranged:
+                                if state.player.ap >= state.player.attack_ap_cost():
                                     execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages)
                                 else:
                                     add_message("Not enough AP to attack.", state.messages)
-
                             else:
-                                adjacent = get_adjacent_tile(clicked_tile, state.player.position, state.current_room)
-                                if move_to_adjacent(state.player, entities[0], state.current_room, time_sensitive, state.messages):
-                                    if time_sensitive:
-                                        ap_cost = state.player.attack_ap_cost()
-                                        if state.player.ap >= ap_cost:
-                                            state.player.ap -= ap_cost
-                                            execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages)
-                                        else:
-                                            add_message("Not enough AP to attack after moving.", state.messages)
+                                if is_within_melee_range(state.player, entities[0]):
+                                    ap_cost = state.player.attack_ap_cost()
+                                    if state.player.ap >= ap_cost:
+                                        execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages)
+                                    else:
+                                        add_message("Not enough AP to attack.", state.messages)
+
+                                else:
+                                    move_and_act(state, entities[0], time_sensitive, state.player.attack_ap_cost(), lambda: execute_attack(state.player, entities[0], state.current_room, time_sensitive=True, messages=state.messages))
                         else:
                             if time_sensitive:
                                 dx = abs(clicked_tile[0] - state.player.position[0])
@@ -439,22 +448,22 @@ def main():
                                 state.player.position = clicked_tile
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_i:
-                    show_inventory = not show_inventory
-                    show_item_submenu = False
+                    ui.show_inventory = not ui.show_inventory
+                    ui.show_item_submenu = False
                 if event.key == pygame.K_ESCAPE:
-                    show_traverse_popup = False
-                    show_loot_popup = False
-                if event.key == pygame.K_TAB and show_loot_popup:
-                    loot_dual_panel = not loot_dual_panel
+                    ui.show_traverse_popup = False
+                    ui.show_loot_popup = False
+                if event.key == pygame.K_TAB and ui.show_loot_popup:
+                    ui.loot_dual_panel = not ui.loot_dual_panel
                 if event.key == pygame.K_ESCAPE:
-                    if show_item_submenu:
-                        show_item_submenu = False
-                    elif show_inventory:
-                        show_inventory = False
+                    if ui.show_item_submenu:
+                        ui.show_item_submenu = False
+                    elif ui.show_inventory:
+                        ui.show_inventory = False
                     else:
-                        show_traverse_popup = False
-                        show_loot_popup = False
-                        loot_dual_panel = False
+                        ui.show_traverse_popup = False
+                        ui.show_loot_popup = False
+                        ui.loot_dual_panel = False
 
         # --- UPDATE ---
         # Advance player animation timer
@@ -562,7 +571,7 @@ def main():
             log_y += 20
 
         # 9. Traverse popup
-        if show_traverse_popup:
+        if ui.show_traverse_popup:
             # draw dark overlay
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 120))  # semi-transparent black
@@ -596,7 +605,8 @@ def main():
                 screen.blit(label, label.get_rect(center=btn_rect.center))
 
         # 10. Loot popup
-        if show_loot_popup and loot_target:
+        
+        if ui.show_loot_popup and ui.loot_target:
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 120))
             screen.blit(overlay, (0, 0))
@@ -604,22 +614,60 @@ def main():
             popup_rect = pygame.Rect(300, 250, 200, 150)
             pygame.draw.rect(screen, (50, 50, 80), popup_rect)
             pygame.draw.rect(screen, (150, 150, 200), popup_rect, 2)
-            title = font.render(f"Loot {loot_target.name}", True, (255, 255, 255))
+            title = font.render(f"Loot {ui.loot_target.name}", True, (255, 255, 255))
             screen.blit(title, (popup_rect.x + 10, popup_rect.y + 10))
             
-            if loot_target.inventory:
-                for i, item in enumerate(loot_target.inventory):
-                    btn_rect = pygame.Rect(popup_rect.x + 20, popup_rect.y + 40 + i * 35, 160, 28)
-                    color = (100, 100, 160) if btn_rect.collidepoint(mouse_pos) else (70, 70, 120)
+            if ui.loot_dual_panel:
+                # LEFT — target inventory
+                left_rect = pygame.Rect(162, 184, 350, 400)
+                pygame.draw.rect(screen, (40, 30, 30), left_rect)
+                pygame.draw.rect(screen, (150, 100, 100), left_rect, 2)
+                screen.blit(font.render(f"{ui.loot_target.name} (Tab to close)", True, (255, 200, 200)), (left_rect.x + 10, left_rect.y + 8))
+                loot_item_rects = []
+                for i, item in enumerate(ui.loot_target.inventory):
+                    btn_rect = pygame.Rect(left_rect.x + 10, left_rect.y + 35 + i * 30, 330, 25)
+                    loot_item_rects.append((item, btn_rect))
+                    color = (100, 70, 70) if btn_rect.collidepoint(mouse_pos) else (60, 40, 40)
                     pygame.draw.rect(screen, color, btn_rect)
-                    label = font.render(item.name, True, (255, 255, 255))
-                    screen.blit(label, label.get_rect(center=btn_rect.center))
+                    screen.blit(font.render(f"{item.name} [{item.weight}kg]", True, (255, 255, 255)), (btn_rect.x + 5, btn_rect.y + 4))
+                if not ui.loot_target.inventory:
+                    screen.blit(font.render("Empty.", True, (150, 150, 150)), (left_rect.x + 10, left_rect.y + 35))
+                
+                # RIGHT — player inventory
+                right_rect = pygame.Rect(512, 184, 350, 400)
+                pygame.draw.rect(screen, (30, 30, 40), right_rect)
+                pygame.draw.rect(screen, (100, 100, 150), right_rect, 2)
+                screen.blit(font.render("Your inventory", True, (200, 200, 255)), (right_rect.x + 10, right_rect.y + 8))
+                player_loot_rects = []
+                for i, item in enumerate(state.player.inventory):
+                    btn_rect = pygame.Rect(right_rect.x + 10, right_rect.y + 35 + i * 30, 330, 25)
+                    player_loot_rects.append((item, btn_rect))
+                    color = (70, 70, 100) if btn_rect.collidepoint(mouse_pos) else (40, 40, 60)
+                    pygame.draw.rect(screen, color, btn_rect)
+                    screen.blit(font.render(f"{item.name} [{item.weight}kg]", True, (255, 255, 255)), (btn_rect.x + 5, btn_rect.y + 4))
+                cw = state.player.carry_weight
+                mcw = state.player.max_carry_weight
+                screen.blit(font.render(f"Weight: {cw:.1f}/{mcw:.1f}kg", True, (200, 200, 200)), (right_rect.x + 10, right_rect.y + 370))
+            
             else:
-                screen.blit(font.render("Nothing left.", True, (180, 180, 180)), 
-                        (popup_rect.x + 10, popup_rect.y + 40))
+                # single panel
+                popup_rect = pygame.Rect(337, 184, 350, 400)
+                pygame.draw.rect(screen, (40, 30, 30), popup_rect)
+                pygame.draw.rect(screen, (150, 100, 100), popup_rect, 2)
+                screen.blit(font.render(f"Loot {ui.loot_target.name} (Tab for inventory)", True, (255, 255, 255)), (popup_rect.x + 10, popup_rect.y + 8))
+                loot_item_rects = []
+                if ui.loot_target.inventory:
+                    for i, item in enumerate(ui.loot_target.inventory):
+                        btn_rect = pygame.Rect(popup_rect.x + 10, popup_rect.y + 35 + i * 30, 330, 25)
+                        loot_item_rects.append((item, btn_rect))
+                        color = (100, 70, 70) if btn_rect.collidepoint(mouse_pos) else (60, 40, 40)
+                        pygame.draw.rect(screen, color, btn_rect)
+                        screen.blit(font.render(f"{item.name} [{item.weight}kg]", True, (255, 255, 255)), (btn_rect.x + 5, btn_rect.y + 4))
+                else:
+                    screen.blit(font.render("Nothing left.", True, (150, 150, 150)), (popup_rect.x + 10, popup_rect.y + 35))
 
         # 11. Inventory panel
-        if show_inventory:
+        if ui.show_inventory:
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 180))
             screen.blit(overlay, (0, 0))
@@ -663,7 +711,7 @@ def main():
                 for item in cat_items:
                     item_rect = pygame.Rect(inv_rect.x + 20, y_offset, 780, 22)
                     item_rects.append((item, item_rect))
-                    color = (100, 100, 160) if item == selected_item else (0, 0, 0, 0)
+                    color = (100, 100, 160) if item == ui.selected_item else (0, 0, 0, 0)
                     if item_rect.collidepoint(mouse_pos):
                         color = (70, 70, 120)
                     if color != (0, 0, 0, 0):
@@ -674,17 +722,17 @@ def main():
                 y_offset += 8
 
             # item submenu
-            if show_item_submenu and selected_item:
-                sx, sy = submenu_pos
+            if ui.show_item_submenu and ui.selected_item:
+                sx, sy = ui.submenu_pos
                 sub_rect = pygame.Rect(sx, sy, 130, 90)
                 pygame.draw.rect(screen, (40, 40, 60), sub_rect)
                 pygame.draw.rect(screen, (150, 150, 200), sub_rect, 1)
                 
                 from logic.items import Weapon, Consumable
                 sub_options = []
-                if isinstance(selected_item, Weapon):
+                if isinstance(ui.selected_item, Weapon):
                     sub_options = ["Equip", "Drop", "Examine"]
-                elif isinstance(selected_item, Consumable):
+                elif isinstance(ui.selected_item, Consumable):
                     sub_options = ["Use", "Drop", "Examine"]
                 else:
                     sub_options = ["Drop", "Examine"]
@@ -701,13 +749,16 @@ def main():
                 tooltip_text = f"{state.player.name} (you)"
             elif entities and not entities[0].is_dead:
                 ap_cost = state.player.attack_ap_cost()
-                if is_within_melee_range(state.player, entities[0]):
-                    tooltip_text = f"Attack {entities[0].name} — {ap_cost} AP"
+                if state.player.equipped_weapon is not None and state.player.equipped_weapon.ranged:
+                    tooltip_text = f"Ranged attack {entities[0].name} — {ap_cost} AP"
                 else:
-                    dx = abs(hovered_tile[0] - state.player.position[0])
-                    dy = abs(hovered_tile[1] - state.player.position[1])
-                    move_cost = max(0, dx + dy - 1)
-                    tooltip_text = f"Attack {entities[0].name} — move ({move_cost}) + attack ({ap_cost}) AP"
+                    if is_within_melee_range(state.player, entities[0]):
+                        tooltip_text = f"Attack {entities[0].name} — {ap_cost} AP"
+                    else:
+                        dx = abs(hovered_tile[0] - state.player.position[0])
+                        dy = abs(hovered_tile[1] - state.player.position[1])
+                        move_cost = max(0, dx + dy - 1)
+                        tooltip_text = f"Attack {entities[0].name} — move ({move_cost}) + attack ({ap_cost}) AP"
             elif entities and entities[0].is_dead:
                 entity = entities[0]
                 status = "(dead)"

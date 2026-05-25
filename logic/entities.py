@@ -80,6 +80,8 @@ class Character(Entity):
         self.max_carry_weight = 50 + self.attributes.STR * 2
 
         self.is_dead = False
+    def loot_ap_cost(self):
+        return 1 # some perks might reduce this
     @property
     def carry_weight(self):
         return sum(item.weight for item in self.inventory)
