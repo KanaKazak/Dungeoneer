@@ -3,7 +3,10 @@ import sys
 import os
 
 
+
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from logic.perks import get_available_perks
 from logic import attributes
 from ui.uistate import UIState
 from logic.gamestate import GameState
@@ -239,22 +242,42 @@ def main():
         mouse_pos = pygame.mouse.get_pos()
         hovered_tile = pixel_to_game(mouse_pos)
         for event in pygame.event.get():
+            if event.type == "win":
+                ui.show_win_screen = True
+                continue
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if ui.show_levelup_popup:
-                    y_offset = 150 # levelup_rect.y + 150
-                    attributes = ["STR", "CON", "DEX", "AGI", "INT", "WIS", "CHA", "LUCK"]
-                    for attr in attributes:
-                        btn_rect = pygame.Rect(300, y_offset - 2, 40, 22)
-                        if btn_rect.collidepoint(event.pos) and ui.attribute_points > 0:
-                            current_value = getattr(state.player.attributes, attr)
-                            setattr(state.player.attributes, attr, current_value + 1)
-                            ui.attribute_points -= 1
-                        y_offset += 35
-                    if ui.attribute_points == 0 and pygame.Rect(120, 450, 120, 35).collidepoint(event.pos):
-                        save_progress(state.player.total_exp, state.player.level, state.player.attributes)
-                        ui.show_levelup_popup = False
+                    if ui.levelup_phase == 1:
+                        y_offset = 150 # levelup_rect.y + 150
+                        attributes = ["STR", "CON", "DEX", "AGI", "INT", "WIS", "CHA", "LUCK"]
+                        for attr in attributes:
+                            btn_rect = pygame.Rect(300, y_offset - 2, 40, 22)
+                            if btn_rect.collidepoint(event.pos) and ui.attribute_points > 0:
+                                current_value = getattr(state.player.attributes, attr)
+                                setattr(state.player.attributes, attr, current_value + 1)
+                                ui.attribute_points -= 1
+                            y_offset += 35
+                        if ui.attribute_points == 0 and pygame.Rect(120, 450, 120, 35).collidepoint(event.pos):
+                            save_progress(state.player.total_exp, state.player.level, state.player.attributes, state.player.perks)
+                            ui.levelup_phase = 2
+                            ui.available_perks = get_available_perks(state.player)
+                    elif ui.levelup_phase == 2:
+                        if not ui.available_perks:
+                            skip_rect = pygame.Rect(120, perk_rect.y + 90, 120, 35)
+                            if skip_rect.collidepoint(event.pos):
+                                save_progress(state.player.total_exp, state.player.level, state.player.attributes, state.player.perks)
+                                ui.show_levelup_popup = False
+                                ui.levelup_phase = 1
+                        # handle perk buttons
+                        for i, (perk_key, perk_data) in enumerate(ui.available_perks):
+                            btn_rect = pygame.Rect(120, 100 + i * 40, 600, 30)
+                            if btn_rect.collidepoint(event.pos):
+                                state.player.perks.add(perk_key)
+                                save_progress(state.player.total_exp, state.player.level, state.player.attributes, state.player.perks)
+                                ui.show_levelup_popup = False
+                                ui.levelup_phase = 1
                     continue  # ignore other clicks when level up popup is active
                 if ui.show_inventory:
                 # rebuild item_rects for click detection
@@ -342,7 +365,7 @@ def main():
                                 add_message(f"You take the {item.name}.", state.messages)
                                 if isinstance(item, GoldMedal):
                                     add_message("You win!", state.messages)
-                                    save_progress(state.player.total_exp, state.player.level, state.player.attributes)
+                                    save_progress(state.player.total_exp, state.player.level, state.player.attributes, state.player.perks)
                                 break
                         # click right panel — drop to target
                         for i, item in enumerate(state.player.inventory):
@@ -361,7 +384,7 @@ def main():
                                 add_message(f"You take the {item.name}.", state.messages)
                                 if isinstance(item, GoldMedal):
                                     add_message("You win!", state.messages)
-                                    save_progress(state.player.total_exp, state.player.level, state.player.attributes)
+                                    save_progress(state.player.total_exp, state.player.level, state.player.attributes, state.player.perks)
                                 if not ui.loot_target.inventory:
                                     ui.show_loot_popup = False
                                 break
@@ -420,10 +443,10 @@ def main():
                                 add_message(f"You pick up the {items[0].name}.", state.messages)
                                 if isinstance(items[0], GoldMedal):
                                     add_message("Congratulations! You found the Gold Medal and won the game!", state.messages)
-                                    save_progress(state.player.total_exp, state.player.level, state.player.attributes)
+                                    save_progress(state.player.total_exp, state.player.level, state.player.attributes, state.player.perks)
                                     ####SHOW WIN SCREEN HERE INSTEAD OF EXITING IMMEDIATELY
                             else:
-                                move_and_act(state, items[0], time_sensitive, state.player.loot_ap_cost(), lambda: execute_loot(state.player, items[0], state.current_room.contents["items"], time_sensitive, state.messages))
+                                move_and_act(state, items[0], time_sensitive, state.player.loot_ap_cost(), lambda: execute_loot(state.player, items[0], state.current_room.contents["items"], time_sensitive, state))
 
                                 
                         elif entities and entities[0].is_dead:
@@ -510,6 +533,7 @@ def main():
             if event["type"] == "level_up":
                 ui.show_levelup_popup = True
                 ui.attribute_points = 5
+                ui.available_perks = get_available_perks(state.player)
                 add_message(f"You leveled up! You are now level {state.player.level}!", state.messages)
 
         # --- DRAW (order matters — things drawn later appear on top) ---
@@ -794,7 +818,7 @@ def main():
                 tooltip_text = f"Move here (distance: {distance})"
             draw_tooltip(screen, font, mouse_pos, tooltip_text)
         # 13. Level up popup
-        if ui.show_levelup_popup:
+        if ui.show_levelup_popup and ui.levelup_phase == 1:
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 180))
             screen.blit(overlay, (0, 0))
@@ -826,6 +850,32 @@ def main():
                 color = (80, 140, 80) if confirm_rect.collidepoint(mouse_pos) else (50, 100, 50)
                 pygame.draw.rect(screen, color, confirm_rect)
                 screen.blit(font.render("Confirm", True, (255, 255, 255)), (confirm_rect.x + 20, confirm_rect.y + 8))
+        if ui.show_levelup_popup and ui.levelup_phase == 2:
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            screen.blit(overlay, (0, 0))
+            
+            perk_rect = pygame.Rect(100, 50, 824, 668)
+            pygame.draw.rect(screen, (30, 30, 50), perk_rect)
+            pygame.draw.rect(screen, (100, 100, 150), perk_rect, 2)
+            
+            title = font.render("Choose a Perk", True, (255, 255, 200))
+            screen.blit(title, (perk_rect.x + 20, perk_rect.y + 10))
+            
+            if not ui.available_perks:
+                screen.blit(font.render("No perks available yet.", True, (150, 150, 150)), (perk_rect.x + 20, perk_rect.y + 50))
+                skip_rect = pygame.Rect(perk_rect.x + 20, perk_rect.y + 90, 120, 35)
+                color = (80, 140, 80) if skip_rect.collidepoint(mouse_pos) else (50, 100, 50)
+                pygame.draw.rect(screen, color, skip_rect)
+                screen.blit(font.render("Skip", True, (255, 255, 255)), (skip_rect.x + 35, skip_rect.y + 8))
+            
+            for i, (perk_key, perk_data) in enumerate(ui.available_perks):
+                btn_rect = pygame.Rect(perk_rect.x + 20, perk_rect.y + 50 + i * 40, 600, 30)
+                color = (80, 80, 140) if btn_rect.collidepoint(mouse_pos) else (50, 50, 80)
+                pygame.draw.rect(screen, color, btn_rect)
+                screen.blit(font.render(f"{perk_data['name']} — {perk_data['description']}", True, (255, 255, 255)), (btn_rect.x + 5, btn_rect.y + 8))
+
+
 
         # 14. Flip to display
         pygame.display.flip()

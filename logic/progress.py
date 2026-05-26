@@ -11,11 +11,12 @@ def load_progress():
                 "STR": 20, "CON": 15, "DEX": 5, "AGI": 3,
                 "INT": 2, "WIS": 3, "CHA": 5, "LUCK": 2
             }))
-            return data["exp"], data["level"], attributes
+            perks = data.get("perks", [])
+            return data["exp"], data["level"], attributes, set(perks)
     except FileNotFoundError:
-        return 0, 1, Attributes(STR=20, CON=15, DEX=5, AGI=3, INT=2, WIS=3, CHA=5, LUCK=2)
+        return 0, 1, Attributes(STR=20, CON=15, DEX=5, AGI=3, INT=2, WIS=3, CHA=5, LUCK=2), set()
 
-def save_progress(exp, level, attributes):
+def save_progress(exp, level, attributes, perks):
     path = "saves/player_progress.json"
     data = {"exp": exp,
             "level": level,
@@ -28,7 +29,8 @@ def save_progress(exp, level, attributes):
                 "WIS": attributes.WIS,
                 "CHA": attributes.CHA,
                 "LUCK": attributes.LUCK
-        }
+        },
+        "perks": list(perks)
     }
     with open(path, 'w') as f:
         json.dump(data, f)

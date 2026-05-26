@@ -66,7 +66,10 @@ def calculate_hit(attacker, defender):
     """
     Determines hit outcome: crit / hit / miss / fumble.
     """
+    steady_aim_bonus = 10 if (attacker.equipped_weapon and attacker.equipped_weapon.ranged and "steady_aim" in attacker.perks) else 0
     roll = random.randint(1, 100)
+
+
 
     crit_threshold = 100 - int(attacker.attributes.get_attribute_bonus("LUCK") // 5)
     fumble_threshold = max(1, 2 - int(attacker.attributes.get_attribute_bonus("LUCK") // 30))
@@ -88,10 +91,9 @@ def calculate_hit(attacker, defender):
     attack_bonus = get_attack_bonus(attacker)
     prof_bonus = attacker.level * 2
 
-    total = roll + attack_bonus + prof_bonus + attacker.attack_bonus_temp
-    ac = 50 + defender.attributes.get_attribute_bonus("AGI")
+    total = roll + attack_bonus + prof_bonus + attacker.attack_bonus_temp + steady_aim_bonus
 
-    return ("hit" if total >= ac else "miss"), roll
+    return ("hit" if total >= defender.evasion else "miss"), roll
 
 
 def calculate_damage(attacker, defender):
@@ -101,8 +103,10 @@ def calculate_damage(attacker, defender):
     
     if isinstance(base_damage, DamageType):
         total_damage = base_damage.total() + attr_bonus + prof_bonus
+        total_damage = max(0, total_damage - defender.ac)  # Apply armor class reduction
     else:
         total_damage = base_damage + attr_bonus + prof_bonus
+        total_damage = max(0, total_damage - defender.ac)  # Apply armor class reduction
     
     return int(total_damage)
 

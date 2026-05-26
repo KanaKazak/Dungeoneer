@@ -10,3 +10,6 @@ class UIState:
         self.loot_dual_panel = False
         self.show_levelup_popup = False
         self.attribute_points = 0
+        self.available_perks = []
+        self.levelup_phase = 1
+        show_win_screen = False

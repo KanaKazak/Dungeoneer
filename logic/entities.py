@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from email.mime import message
+import sys
+import os
 import random
 
-from logic.input_handler import get_input
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logic.messages import add_message
 from logic.progress import load_progress
 from logic.attributes import Attributes
@@ -69,6 +70,7 @@ class Character(Entity):
         self.level = level
         self.exp_threshold = self.level * 100
         self.total_exp = 0
+        self.perks = set()  # e.g. {"war_hardened", "scholar", "thick_hide"}
 
         self.equipped_weapon = equipped_weapon
         self.base_damage = 2  # placeholder until scaling system exists
@@ -87,6 +89,31 @@ class Character(Entity):
     @property
     def carry_weight(self):
         return sum(item.weight for item in self.inventory)
+    
+    @property
+    def hp_max(self):
+        base = self.base_hp + int(self.attributes.get_attribute_bonus("CON") * 2)
+        if "war_hardened" in self.perks:
+            base += (self.attributes.STR // 10) * 5
+        return base
+    @property
+    def int_bonus(self):
+        base = 1 + self.attributes.get_attribute_bonus("INT") * 0.005
+        if "scholar" in self.perks:
+            return base + 0.2
+        return base  
+    @property
+    def evasion(self):
+        base = 50 + self.attributes.get_attribute_bonus("AGI")
+        if "sidestep" in self.perks:
+            base += 10
+        return base
+    @property
+    def ac(self):
+        base = 0
+        if "thick_hide" in self.perks:
+            base += 2
+        return base
 
     # ---------------------------------------------------------
     # COMBAT STATS
@@ -117,12 +144,10 @@ class Character(Entity):
     # ---------------------------------------------------------
     # EXPERIENCE & LEVELING
     # ---------------------------------------------------------
-
     def gain_exp(self, amount, state):
-        multiplier = 1 + int(self.attributes.get_attribute_bonus("INT")) * 0.005
-        self.total_exp += int(amount * multiplier)
+        self.total_exp += int(amount * self.int_bonus)
         if self.total_exp >= self.exp_threshold:
-             state.events.emit("level_up", player=self)
+            state.events.emit("level_up", player=self)
 
     def level_up(self, messages):
         self.total_exp -= self.exp_threshold
@@ -154,12 +179,11 @@ class Player(Character):
 
         self.inventory = []
 
-        self.total_exp, self.level, self.attributes = load_progress()
+        self.total_exp, self.level, self.attributes, self.perks = load_progress()
 
         self.exp_threshold = self.level * 100
 
         # Recalculate derived stats after loading
-        self.hp_max = self.base_hp + int(self.attributes.get_attribute_bonus("CON") * 2)
         self.hp = self.hp_max
 
         self.ap_max = 4 + int(self.attributes.get_attribute_bonus("AGI") // 15)
@@ -179,57 +203,6 @@ class Player(Character):
             f"{self.name} is a mighty hero venturing into the dungeon.\n"
             f"{self.hp}/{self.hp_max} HP | Damage: {self.damage}"
         )
-
-
-    # ---------------------------------------------------------
-    # PLAYER LEVEL UP (ATTRIBUTE ALLOCATION)
-    # ---------------------------------------------------------
-
-    def level_up(self, messages):
-        super().level_up()
-
-        attribute_points = 5
-
-        print(f"Your current attributes:\n{self.attributes}")
-        print(
-            f"You have {attribute_points} points to distribute among:\n"
-            "STR, CON, DEX, AGI, INT, WIS, CHA, LUCK."
-        )
-
-        valid_attributes = ["STR", "CON", "DEX", "AGI", "INT", "WIS", "CHA", "LUCK"]
-
-        while attribute_points > 0:
-            choice = get_input(
-                f"Increase which attribute? (Points left: {attribute_points}) ",
-                self
-            ).upper()
-
-            if choice not in valid_attributes:
-                print("Invalid attribute choice.")
-                continue
-
-            current_value = getattr(self.attributes, choice)
-            effective = self.attributes.apply_soft_cap(current_value, 1)
-
-            # Soft cap warnings
-            if current_value >= 80:
-                print(f"⚠ {choice}: severe diminishing returns ({effective:.2f})")
-            elif current_value >= 60:
-                print(f"⚠ {choice}: strong diminishing returns ({effective:.2f})")
-            elif current_value >= 30:
-                print(f"⚠ {choice}: moderate diminishing returns ({effective:.2f})")
-
-            confirm = get_input(
-                f"Increase {choice} from {current_value} to {current_value + 1}? (yes/no): ",
-                self
-            )
-
-            if confirm == "yes":
-                setattr(self.attributes, choice, current_value + 1)
-                attribute_points -= 1
-                print(f"{choice} increased!\n{self.attributes}")
-            else:
-                print("Cancelled.")
 
 
 
@@ -253,7 +226,6 @@ class Enemy(Character):
             STR=5, CON=5, DEX=3, AGI=3, INT=1, WIS=1, CHA=1, LUCK=2
         )
 
-        self.hp_max = self.base_hp + int(self.attributes.get_attribute_bonus("CON") * 2)
         self.hp = self.hp_max
 
         self.ap_max = 4 + int(self.attributes.get_attribute_bonus("AGI") // 15)
@@ -299,8 +271,8 @@ class Goblin(Enemy):
         increase = random.choice(choices)
         setattr(self.attributes, increase, getattr(self.attributes, increase) + 1)
 
-        print(
+        add_message(
             f"The {self.name} grew "
             f"{'stronger' if increase == 'STR' else 'more cunning' if increase == 'DEX' else 'tougher' if increase == 'CON' else 'luckier' if increase == 'LUCK' else 'faster'}! "
             f"It is now level {self.level}!"
-        )
+        , messages=None)

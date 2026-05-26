@@ -121,7 +121,7 @@ def handle_corpse_loot(player, corpse, time_sensitive):
 # CORE LOOT EXECUTION
 # =========================================================
 
-def execute_loot(player, item, source, time_sensitive=False, messages=None):
+def execute_loot(player, item, source, time_sensitive=False, state=None):
     """
     Moves item from world to player inventory.
     """
@@ -132,31 +132,31 @@ def execute_loot(player, item, source, time_sensitive=False, messages=None):
     player.inventory.append(item)
     source.remove(item)
 
-    add_message(f"You loot the {item.name}.", messages)
+    add_message(f"You loot the {item.name}.", state.messages)
 
     # -------------------------
     # WIN CONDITION ITEM
     # -------------------------
     if item.name.lower() == "gold medal":
-        handle_win_condition(player)
+        handle_win_condition(player, state)
 
 
 # =========================================================
 # WIN CONDITION
 # =========================================================
 
-def handle_win_condition(player):
+def handle_win_condition(player, state):
     """
     Ends game when victory item is obtained.
     """
 
-    player.gain_exp(100)
+    player.gain_exp(100, state)  # grant some exp for winning
 
-    print("You have collected the prize and won the game! Congratulations!")
+    add_message("You have collected the prize and won the game! Congratulations!", state.messages)
 
-    save_progress(player.total_exp, player.level, player.attributes)
+    save_progress(player.total_exp, player.level, player.attributes, player.perks)
 
-    exit()
+    state.events.emit("win")
 
 
 # =========================================================
