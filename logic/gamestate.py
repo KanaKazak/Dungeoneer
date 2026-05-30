@@ -9,6 +9,7 @@ class GameState:
         self.messages = ["Welcome to Dungeoneer"]
         self.running = True
         self.events = EventQueue()
+        self.kills = 0
 
 def log(text, messages=None):
     if messages is not None:

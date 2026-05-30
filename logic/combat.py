@@ -251,6 +251,7 @@ def execute_attack(attacker, target, current_room, time_sensitive=False, state =
     # -------------------------
     if not target.is_alive():
         target.is_dead = True
+        state.kills += 1
         log(f"You have slain {target.name}!", state.messages)
 
         exp_gained = target.level * 10

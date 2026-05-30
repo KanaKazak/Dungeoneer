@@ -49,6 +49,8 @@ def options():
 # =========================================================
 
 def initialize_game(state, player_name = "Hero"): #player name hardcoded for now
+    state.messages = ["Welcome to Dungeoneer"]
+    state.kills = 0
     state.player = Player(name=player_name, position=starting_point, health=100)
     state.dungeon, state.current_room = generate_dungeon(state.player)
     state.current_room.is_visited = True
